@@ -120,19 +120,6 @@ class MyPhi(MixFormerSequentialForCausalLM):
     def embed_tokens(self, inp):
         return self.emb(inp)
 
-    # def forward(self,
-    #     input_ids: torch.LongTensor = None,
-    #     attention_mask: Optional[torch.Tensor] = None,
-    #     position_ids: Optional[torch.LongTensor] = None,
-    #     past_key_values: Optional[List[torch.FloatTensor]] = None,
-    #     inputs_embeds: Optional[torch.FloatTensor] = None,
-    #     use_cache: Optional[bool] = None,
-    #     output_attentions: Optional[bool] = None,
-    #     output_hidden_states: Optional[bool] = None,
-    #     return_dict: Optional[bool] = None,
-    # ):
-
-
 class LlavaConfig(PhiConfig):
     model_type = "llava"
 
@@ -141,10 +128,7 @@ class LlavaPhiModel(LlavaMetaModel, MixFormerSequentialForCausalLM):
     config_class = LlavaConfig
 
     def __init__(self, config: PhiConfig):
-        # print(super(LlavaPhiModel, self).__init__)
         super(LlavaPhiModel, self).__init__(config)
-        # self.model = PhiForCausalLM
-
     def embed_tokens(self, inp):
         return self.layers[0](inp).squeeze(0)
 
@@ -154,24 +138,14 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
 
     def __init__(self, config):
         super(MixFormerSequentialForCausalLM, self).__init__(config)
-        # print('Phi INIT _______---------_______-------_______---------__________---------_______-----')
+        # print('Phi INIT')
         self.model = LlavaPhiModel(config)
         test_model = MixFormerSequentialForCausalLM.from_pretrained(
             config._name_or_path
         )
-        # print(test_model)
-        # print(self.model)
         del self.model.layers
         torch.cuda.empty_cache()
         self.model.layers = test_model.layers
-        # self.model.transformer = test_model.transformer
-        # self.model.lm_head = test_model.lm_head
-        # print('model2.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava phi', test_model.transformer.h[0].mlp.fc1.weight[0, 0])
-        # print('model1.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava phi', self.model.transformer.h[0].mlp.fc1.weight[0, 0])
-
-        # print(model.transformer.
-        # self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        # print('model in llava', self.model)
         self.pretraining_tp = 0  # config.pretraining_tp
         self.vocab_size = config.vocab_size
 
@@ -195,10 +169,6 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
     def set_output_embeddings(self, new_embeddings):
         self.model.layers[25].linear = new_embeddings
         # print('in set_input_embeddings:', new_embeddings)
-
-    # def transformer(self, input_ids, past_key_values, attention_mask):
-    # print(type(input_ids), type(past_key_values), type(attention_mask), '________---------_________-----_______----_--__-_--_-_--_-_--_-_-_--_-_-______--_-_-----')
-    # return self.model(input_ids, past_key_values=past_key_values, attention_mask=attention_mask)
 
     def forward(
         self,
@@ -233,11 +203,10 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         if inputs_embeds is None:
             inputs_embeds = self.model.layers[0](input_ids)
 
-        print("inputs_embeds :", inputs_embeds)
+        # print("inputs_embeds :", inputs_embeds)
         if not past_key_values:
             lm_logits = self.model.layers[1:](inputs_embeds)
         else:
-            # hidden_layer = self.layers[0](input_ids)
             hidden_layer = inputs_embeds
             for module in self.model.layers[1:-1]:
                 hidden_layer = module(hidden_layer, past_cache=past_key_values)
@@ -250,67 +219,7 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         return CausalLMOutputWithPast(
             loss=loss, logits=lm_logits, past_key_values=past_key_values
         )
-        # # print('in phi', position_ids)
-        # # print('input_ids:', input_ids.shape)
-        # # print(self.model)
-        # # print('embeds shape: ', inputs_embeds.shape)
-        # if input_ids is not None:
-        #     batch_size, seq_length = input_ids.shape
-        # elif inputs_embeds is not None:
-        #     batch_size, seq_length, _ = inputs_embeds.shape
-        # seq_length_with_past = seq_length
-        # past_key_values_length = 0
-        # # print('past_kv: ', past_key_values)
-        # if past_key_values is not None and not hasattr(past_key_values, 'max_seqlen'):
-        #     # print('past_kv: ', dir(past_key_values))
-        #     past_key_values_length = past_key_values[0][0].shape[2]
-        #     seq_length_with_past = seq_length_with_past + past_key_values_length
-
-        # if attention_mask is None:
-        #     attention_mask = torch.ones(
-        #         (batch_size, seq_length_with_past), dtype=torch.bool, device=inputs_embeds.device
-        #     )
-        # # attention_mask = self._prepare_decoder_attention_mask(
-        #     # attention_mask, (batch_size, seq_length), inputs_embeds, past_key_values_length
-        # # )
-        # # print('inputs_embeds: ', inputs_embeds)
-        # if inputs_embeds is None:
-        #     inputs_embeds = self.get_input_embeddings()(input_ids)
-        # # if input_ids is not None:
-        #     # print('input_ids: ', input_ids)
-        #     # hidden_states = self.model(input_ids, past_key_values=past_key_values, attention_mask=attention_mask)
-        # # elif inputs_embeds is not None:
-        #     # print(inputs_embeds.shape, attention_mask.shape)
-        # hidden_states = inputs_embeds
-        # for layer in self.model.transformer.h:
-        #     # print('in for', )
-        #     hidden_states = layer(
-        #         hidden_states,
-        #         past_key_values=past_key_values,
-        #         attention_mask=attention_mask,
-        #     )
-
-        #     # hidden_states = self.model.h(inputs_embeds)
-        # lm_logits = self.model.lm_head(hidden_states)
-
-        # loss = None
-        # if labels is not None:
-        #     loss = self.loss(lm_logits, labels)
-
-        # return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values)
-
-        # return super().forward(
-        #     input_ids=input_ids,
-        #     attention_mask=attention_mask,
-        #     position_ids=position_ids,
-        #     past_key_values=past_key_values,
-        #     inputs_embeds=inputs_embeds,
-        #     labels=labels,
-        #     use_cache=use_cache,
-        #     output_attentions=output_attentions,
-        #     output_hidden_states=output_hidden_states,
-        #     return_dict=return_dict
-        # )
+       
 
     # Copied from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
     def _prepare_decoder_attention_mask(

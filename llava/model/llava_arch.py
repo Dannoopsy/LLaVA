@@ -29,10 +29,6 @@ from .multimodal_projector.builder import build_vision_projector
 class LlavaMetaModel:
     def __init__(self, config):
         super(LlavaMetaModel, self).__init__(config)
-        # super(LlavaMetaModel, self).from_pretrained(config._name_or_path)
-        # print('config ', config)
-        # print('model1.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava arch', self.transformer.h[0].mlp.fc1.weight[0, 0])
-
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
@@ -241,7 +237,6 @@ class LlavaMetaForCausalLM(ABC):
             cur_input_embeds = self.get_model().embed_tokens(
                 torch.cat(cur_input_ids_noim)
             )
-            #             print(cur_input_embeds.shape, '-----------------------________________________________ SHAPE')
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
             cur_new_input_embeds = []
             cur_new_labels = []
