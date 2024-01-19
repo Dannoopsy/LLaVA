@@ -43,6 +43,7 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
     def __init__(self, config):
         super(LlamaForCausalLM, self).__init__(config)
         self.model = LlavaLlamaModel(config)
+        
         self.pretraining_tp = config.pretraining_tp
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -67,6 +68,7 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
+        
 
         if inputs_embeds is None:
             (
@@ -84,7 +86,8 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
                 labels,
                 images
             )
-
+        # print(type(input_ids), type(past_key_values), type(attention_mask), '________---------_________-----_______----_--__-_--_-_--_-_--_-_-_--_-_-______--_-_-----')
+        
         return super().forward(
             input_ids=input_ids,
             attention_mask=attention_mask,

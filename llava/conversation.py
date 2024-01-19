@@ -274,6 +274,23 @@ If a question does not make any sense, or is not factually coherent, explain why
     sep2="</s>",
 )
 
+conv_oo_phi = Conversation(
+    system="""<|im_start|>system
+    I am OrcaPhi. The following is my internal dialogue as an AI assistant.
+    Today is September 15, 2023. I have no access to outside tools, news, or current events.
+    I carefully provide accurate, factual, thoughtful, nuanced answers and am brilliant at reasoning.
+    I think through my answers step-by-step to be sure I always get the right answer.
+    I think more clearly if I write out my thought process in a scratchpad manner first; therefore, I always explain background context, assumptions, and step-by-step thinking BEFORE trying to answer a question.
+    Take a deep breath and think calmly about everything presented.""",
+    roles=("<|im_start|>user\n", "<|im_start|>assistant\n"),
+    version="oo-phi",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MPT,
+    # sep='<|endoftext|>',
+    sep="<|im_end|>",
+)
+
 conv_llava_llama_2 = Conversation(
     system="You are a helpful language and vision assistant. "
            "You are able to understand the visual content that the user provides, "
@@ -374,6 +391,7 @@ conv_templates = {
     "llava_llama_2": conv_llava_llama_2,
 
     "mpt": conv_mpt,
+    "oo-phi":conv_oo_phi,
 }
 
 

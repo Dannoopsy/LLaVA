@@ -28,6 +28,9 @@ class LlavaMetaModel:
 
     def __init__(self, config):
         super(LlavaMetaModel, self).__init__(config)
+        # super(LlavaMetaModel, self).from_pretrained(config._name_or_path)
+        # print('config ', config)
+        # print('model1.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava arch', self.transformer.h[0].mlp.fc1.weight[0, 0])
 
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
@@ -92,7 +95,10 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
+        # print('img device: ', images.device, 'model device: ', self.get_model().mm_projector[2].weight.device)
         image_features = self.get_model().get_vision_tower()(images)
+        # print('img device: ', image_features.device, 'model device: ', self.get_model().mm_projector[2].weight.device)
+        image_features = image_features.to(self.get_model().mm_projector[0].weight)
         image_features = self.get_model().mm_projector(image_features)
         return image_features
 
@@ -100,7 +106,15 @@ class LlavaMetaForCausalLM(ABC):
         self, input_ids, position_ids, attention_mask, past_key_values, labels, images
     ):
         vision_tower = self.get_vision_tower()
+        # print(type(past_key_values))
+        # if hasattr(past_key_values, 'max_seqlen'):
+        #     past_key_values = None
+
+        # past_key_values = None
+        # print(past_key_values)
+        # print('args:', 'input_ids', input_ids, 'position_ids', position_ids, attention_mask, 'labels', labels, images)
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
+            print('without images')
             if past_key_values is not None and vision_tower is not None and images is not None and input_ids.shape[1] == 1:
                 target_shape = past_key_values[-1][-1].shape[-2] + 1
                 attention_mask = torch.cat((attention_mask, torch.ones(
@@ -109,6 +123,7 @@ class LlavaMetaForCausalLM(ABC):
                     device=attention_mask.device
                 )), dim=1)
                 position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
+            print('without images')
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         if type(images) is list or images.ndim == 5:
@@ -152,6 +167,7 @@ class LlavaMetaForCausalLM(ABC):
             if num_images == 0:
                 cur_image_features = image_features[cur_image_idx]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids)
+                # print('shape', cur_image_features[0:0].shape)
                 cur_input_embeds = torch.cat([cur_input_embeds_1, cur_image_features[0:0]], dim=0)
                 new_input_embeds.append(cur_input_embeds)
                 new_labels.append(labels[batch_idx])
@@ -167,6 +183,7 @@ class LlavaMetaForCausalLM(ABC):
                 cur_labels_noim.append(cur_labels[image_token_indices[i]+1:image_token_indices[i+1]])
             split_sizes = [x.shape[0] for x in cur_labels_noim]
             cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noim))
+#             print(cur_input_embeds.shape, '-----------------------________________________________ SHAPE')
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
             cur_new_input_embeds = []
             cur_new_labels = []
@@ -236,7 +253,7 @@ class LlavaMetaForCausalLM(ABC):
 
         if _position_ids is None:
             position_ids = None
-
+        
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
 
     def initialize_vision_tokenizer(self, model_args, tokenizer):
