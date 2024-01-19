@@ -17,29 +17,33 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from transformers import (AutoConfig, AutoModelForCausalLM)
 
-from transformers import AutoConfig, AutoModelForCausalLM#, PhiConfig, PhiModel, PhiForCausalLM
-my_cfg_phi = AutoConfig.from_pretrained('/home/d.belopolskikh/home/llava/checkpoints/oo-phi-1_5/', trust_remote_code=True)
-from transformers_modules.configuration_phi import PhiConfig
+my_cfg_phi = AutoConfig.from_pretrained(
+    "/home/d.belopolskikh/home/llava/checkpoints/oo-phi-1_5/", trust_remote_code=True
+)
 import importlib
-oo_phi_module = importlib.import_module('transformers_modules.oo-phi-1_5.modeling_mixformer_sequential')
-MixFormerSequentialForCausalLM = oo_phi_module.MixFormerSequentialForCausalLM
-# from oo_phi_module import MixFormerSequentialForCausalLM
-# class MixFormerSequentialForCausalLM:
-#     def __init__(self):
-#         pass
 
+from transformers_modules.configuration_phi import PhiConfig
+
+oo_phi_module = importlib.import_module(
+    "transformers_modules.oo-phi-1_5.modeling_mixformer_sequential"
+)
+MixFormerSequentialForCausalLM = oo_phi_module.MixFormerSequentialForCausalLM
+
+import sys
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-import sys
-sys.path.append('/home/d.belopolskikh/home/llava')
-from LLaVA.llava.model.llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
-
+sys.path.append("/home/d.belopolskikh/home/llava")
+from LLaVA.llava.model.llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
 
 
 def _make_causal_mask(
-    input_ids_shape: torch.Size, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0
+    input_ids_shape: torch.Size,
+    dtype: torch.dtype,
+    device: torch.device,
+    past_key_values_length: int = 0,
 ):
     """
     Make causal mask used for bi-directional self-attention.
@@ -51,8 +55,18 @@ def _make_causal_mask(
     mask = mask.to(dtype)
 
     if past_key_values_length > 0:
-        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
-    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+        mask = torch.cat(
+            [
+                torch.zeros(
+                    tgt_len, past_key_values_length, dtype=dtype, device=device
+                ),
+                mask,
+            ],
+            dim=-1,
+        )
+    return mask[None, None, :, :].expand(
+        bsz, 1, tgt_len, tgt_len + past_key_values_length
+    )
 
 
 # Copied from transformers.models.bart.modeling_bart._expand_mask
@@ -67,7 +81,9 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
 
     inverted_mask = 1.0 - expanded_mask
 
-    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+    return inverted_mask.masked_fill(
+        inverted_mask.to(torch.bool), torch.finfo(dtype).min
+    )
 
 
 class CausalLMLoss(nn.Module):
@@ -85,7 +101,9 @@ class CausalLMLoss(nn.Module):
         self.shift_labels = shift_labels
         self.loss_fct = nn.CrossEntropyLoss()
 
-    def forward(self, logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def forward(
+        self, logits: torch.FloatTensor, labels: torch.LongTensor
+    ) -> torch.FloatTensor:
         if self.shift_labels:
             logits = logits[..., :-1, :].contiguous()
             labels = labels[..., 1:].contiguous()
@@ -98,10 +116,11 @@ class CausalLMLoss(nn.Module):
 class MyPhi(MixFormerSequentialForCausalLM):
     def get_input_embeddings(self):
         return self.embd.wte
+
     def embed_tokens(self, inp):
         return self.emb(inp)
 
-    # def forward(self, 
+    # def forward(self,
     #     input_ids: torch.LongTensor = None,
     #     attention_mask: Optional[torch.Tensor] = None,
     #     position_ids: Optional[torch.LongTensor] = None,
@@ -112,7 +131,6 @@ class MyPhi(MixFormerSequentialForCausalLM):
     #     output_hidden_states: Optional[bool] = None,
     #     return_dict: Optional[bool] = None,
     # ):
-        
 
 
 class LlavaConfig(PhiConfig):
@@ -126,7 +144,7 @@ class LlavaPhiModel(LlavaMetaModel, MixFormerSequentialForCausalLM):
         # print(super(LlavaPhiModel, self).__init__)
         super(LlavaPhiModel, self).__init__(config)
         # self.model = PhiForCausalLM
-        
+
     def embed_tokens(self, inp):
         return self.layers[0](inp).squeeze(0)
 
@@ -138,7 +156,9 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         super(MixFormerSequentialForCausalLM, self).__init__(config)
         # print('Phi INIT _______---------_______-------_______---------__________---------_______-----')
         self.model = LlavaPhiModel(config)
-        test_model = MixFormerSequentialForCausalLM.from_pretrained(config._name_or_path)
+        test_model = MixFormerSequentialForCausalLM.from_pretrained(
+            config._name_or_path
+        )
         # print(test_model)
         # print(self.model)
         del self.model.layers
@@ -148,38 +168,37 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         # self.model.lm_head = test_model.lm_head
         # print('model2.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava phi', test_model.transformer.h[0].mlp.fc1.weight[0, 0])
         # print('model1.model.transformer.h[0].mlp.fc1.weight[0, 0] in llava phi', self.model.transformer.h[0].mlp.fc1.weight[0, 0])
-        
+
         # print(model.transformer.
         # self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         # print('model in llava', self.model)
-        self.pretraining_tp = 0#config.pretraining_tp
+        self.pretraining_tp = 0  # config.pretraining_tp
         self.vocab_size = config.vocab_size
-        
+
         self.loss = CausalLMLoss()
         # Initialize weights and apply final processing
         self.post_init()
 
-
     def get_model(self):
         return self.model
-    
+
     def get_input_embeddings(self):
         # print(self)
         return self.model.layers[0].wte
 
     def get_output_embeddings(self):
         return self.model.layers[25].linear
-    
+
     def set_input_embeddings(self, new_embeddings):
         self.model.layers[0].wte = new_embeddings
 
     def set_output_embeddings(self, new_embeddings):
         self.model.layers[25].linear = new_embeddings
         # print('in set_input_embeddings:', new_embeddings)
-    
+
     # def transformer(self, input_ids, past_key_values, attention_mask):
-        # print(type(input_ids), type(past_key_values), type(attention_mask), '________---------_________-----_______----_--__-_--_-_--_-_--_-_-_--_-_-______--_-_-----')
-        # return self.model(input_ids, past_key_values=past_key_values, attention_mask=attention_mask)
+    # print(type(input_ids), type(past_key_values), type(attention_mask), '________---------_________-----_______----_--__-_--_-_--_-_--_-_-_--_-_-______--_-_-----')
+    # return self.model(input_ids, past_key_values=past_key_values, attention_mask=attention_mask)
 
     def forward(
         self,
@@ -195,7 +214,6 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        
         # print('in phi', input_ids[0])
         # print('img shape', images.shape)
         past_key_values = None
@@ -207,21 +225,15 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
                 attention_mask,
                 past_key_values,
                 inputs_embeds,
-                labels
-            ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
                 labels,
-                images
+            ) = self.prepare_inputs_labels_for_multimodal(
+                input_ids, position_ids, attention_mask, past_key_values, labels, images
             )
 
         if inputs_embeds is None:
             inputs_embeds = self.model.layers[0](input_ids)
 
-        
-        print('inputs_embeds :', inputs_embeds)
+        print("inputs_embeds :", inputs_embeds)
         if not past_key_values:
             lm_logits = self.model.layers[1:](inputs_embeds)
         else:
@@ -235,7 +247,9 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         if labels is not None:
             loss = self.loss(lm_logits, labels)
 
-        return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values)
+        return CausalLMOutputWithPast(
+            loss=loss, logits=lm_logits, past_key_values=past_key_values
+        )
         # # print('in phi', position_ids)
         # # print('input_ids:', input_ids.shape)
         # # print(self.model)
@@ -285,7 +299,6 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
 
         # return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values)
 
-        
         # return super().forward(
         #     input_ids=input_ids,
         #     attention_mask=attention_mask,
@@ -300,7 +313,9 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         # )
 
     # Copied from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
-    def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+    def _prepare_decoder_attention_mask(
+        self, attention_mask, input_shape, inputs_embeds, past_key_values_length
+    ):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
@@ -314,24 +329,31 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
 
         if attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
-                inputs_embeds.device
-            )
+            expanded_attn_mask = _expand_mask(
+                attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]
+            ).to(inputs_embeds.device)
             combined_attention_mask = (
-                expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
+                expanded_attn_mask
+                if combined_attention_mask is None
+                else expanded_attn_mask + combined_attention_mask
             )
 
         return combined_attention_mask
 
-    
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
+    def prepare_inputs_for_generation(
+        self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs
+    ):
         images = kwargs.pop("images", None)
         _inputs = super().prepare_inputs_for_generation(
-            input_ids, past_key_values=past_key_values, inputs_embeds=inputs_embeds, **kwargs
+            input_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            **kwargs,
         )
         if images is not None:
-            _inputs['images'] = images
+            _inputs["images"] = images
         return _inputs
+
 
 AutoConfig.register("llava", LlavaConfig)
 AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)
