@@ -111,7 +111,7 @@ class Conversation:
 
     def get_images(self, return_pil=False):
         images = []
-        for i, (role, msg) in enumerate(self.messages[self.offset:]):
+        for i, (role, msg) in enumerate(self.messages[self.offset :]):
             if i % 2 == 0:
                 if type(msg) is tuple:
                     import base64
@@ -380,6 +380,19 @@ conv_llava_v1 = Conversation(
     sep2="</s>",
 )
 
+conv_phi_pretrained_v1 = Conversation(
+    system="A chat between a curious human and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+    roles=("USER", "ASSISTANT"),
+    version="v1",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep=" ",
+    sep2="<|endoftext|>",
+)
+
+
 conv_llava_v1_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
     "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
@@ -409,6 +422,7 @@ conv_templates = {
     "llava_llama_2": conv_llava_llama_2,
     "mpt": conv_mpt,
     "oo-phi": conv_oo_phi,
+    "phi": conv_phi_pretrained_v1,
 }
 
 

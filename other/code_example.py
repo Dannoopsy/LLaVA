@@ -5,11 +5,11 @@ sys_prompt = "I am OrcaPhi. The following is my internal dialogue as an AI assis
         "I think more clearly if I write out my thought process in a scratchpad manner first; therefore, I always " \
         "explain background context, assumptions, and step-by-step thinking BEFORE trying to answer a question." \
         "Take a deep breath and think calmly about everything presented."
-    
+
     prefix = "<|im_start|>"
     suffix = "<|im_end|>\n"
     sys_format = prefix + "system\n" + sys_prompt + suffix
-    
+
 
 def my_pred(model, tokenizer, prompt, img, n=20, alpha=1):
     user_format = prefix + "user\n" + prompt + suffix

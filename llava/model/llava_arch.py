@@ -99,10 +99,14 @@ class LlavaMetaForCausalLM(ABC):
         pass
 
     def get_vision_tower(self):
+        # print(self.get_model())
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
         # print('img device: ', images.device, 'model device: ', self.get_model().mm_projector[2].weight.device)
+        # print('img.shape', images.shape)
+        if images.ndim == 3:
+            images = images.unsqueeze(0)
         image_features = self.get_model().get_vision_tower()(images)
         # print('img device: ', image_features.device, 'model device: ', self.get_model().mm_projector[2].weight.device)
         image_features = image_features.to(self.get_model().mm_projector[0].weight)
@@ -110,7 +114,14 @@ class LlavaMetaForCausalLM(ABC):
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
-        self, input_ids, position_ids, attention_mask, past_key_values, labels, images
+        self,
+        input_ids,
+        position_ids,
+        attention_mask,
+        past_key_values,
+        labels,
+        images,
+        alpha=1,
     ):
         vision_tower = self.get_vision_tower()
         # print(type(past_key_values))
@@ -170,6 +181,9 @@ class LlavaMetaForCausalLM(ABC):
             self.config, "mm_use_im_start_end", False
         ):
             raise NotImplementedError
+
+        image_features = image_features * alpha
+        # print(image_features.shape)
 
         # Let's just add dummy tensors if they do not exist,
         # it is a headache to deal with None all the time.

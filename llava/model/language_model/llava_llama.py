@@ -65,6 +65,8 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
+        alpha=1,
+        return_norms=False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         if inputs_embeds is None:
             (
@@ -75,7 +77,13 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
                 inputs_embeds,
                 labels,
             ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids, position_ids, attention_mask, past_key_values, labels, images
+                input_ids,
+                position_ids,
+                attention_mask,
+                past_key_values,
+                labels,
+                images,
+                alpha,
             )
 
         return super().forward(

@@ -14,17 +14,17 @@ body:
       placeholder: Issue
       value: |
         Issue:
-        
+
         Command:
         ```
         PASTE THE COMMANDS HERE.
         ```
-        
-        Log: 
+
+        Log:
         ```
         PASTE THE LOGS HERE.
         ```
-        
+
         Screenshots:
         You may attach screenshots if it better explains the issue.
     validations:

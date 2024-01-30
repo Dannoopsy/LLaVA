@@ -2,24 +2,24 @@
 # Licensed under the MIT license.
 
 # BSD 3-Clause License
-# 
+#
 # Copyright (c) 2022, Tri Dao, trid@cs.stanford.edu.
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # * Redistributions of source code must retain the above copyright notice, this
 #   list of conditions and the following disclaimer.
-# 
+#
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
-# 
+#
 # * Neither the name of the copyright holder nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -33,26 +33,27 @@
 
 from __future__ import annotations
 
-import math
 import copy
-from typing import Any, Dict, Optional, Tuple
+import math
 from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
-
 from einops import rearrange
-from transformers.activations import ACT2FN
 from transformers import PretrainedConfig, PreTrainedModel
+from transformers.activations import ACT2FN
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from .configuration_mixformer_sequential import MixFormerSequentialConfig
+
 
 @dataclass
 class InferenceParams:
     """Inference parameters that are passed to the main model in order
     to efficienly calculate and store the context during inference.
     Adapted from https://github.com/Dao-AILab/flash-attention."""
+
     max_sequence_len: int
     max_batch_size: int
     sequence_len_offset: int = 0
@@ -80,6 +81,7 @@ class Embedding(nn.Module):
 
         return hidden_states
 
+
 class RotaryEmbedding(nn.Module):
     """PyTorch implementation of `flash-attn` RotaryEmbedding layer.
     Adapted from https://github.com/Dao-AILab/flash-attention."""
@@ -103,11 +105,14 @@ class RotaryEmbedding(nn.Module):
         self.scale_base = scale_base
         self.device = device
 
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim))
+        inv_freq = 1.0 / (
+            base ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
+        )
         self.register_buffer("inv_freq", inv_freq)
 
         scale = (
-            (torch.arange(0, dim, 2, device=device, dtype=torch.float32) + 0.4 * dim) / (1.4 * dim)
+            (torch.arange(0, dim, 2, device=device, dtype=torch.float32) + 0.4 * dim)
+            / (1.4 * dim)
             if scale_base is not None
             else None
         )
@@ -119,7 +124,9 @@ class RotaryEmbedding(nn.Module):
         self._cos_k_cached = None
         self._sin_k_cached = None
 
-    def _update_cos_sin_cache(self, x: torch.FloatTensor, seqlen_offset: Optional[int] = 0) -> None:
+    def _update_cos_sin_cache(
+        self, x: torch.FloatTensor, seqlen_offset: Optional[int] = 0
+    ) -> None:
         # Reset the tables if the sequence length has changed,
         # or if we're on a new device (possibly due to tracing for instance)
         seqlen = x.shape[1] + seqlen_offset
@@ -128,24 +135,41 @@ class RotaryEmbedding(nn.Module):
         # (for instance if model.half() was called)
         if self.inv_freq.dtype != "torch.float32":
             self.inv_freq = 1.0 / (
-                self.base ** (torch.arange(0, self.dim, 2, device=self.device, dtype=torch.float32) / self.dim)
+                self.base
+                ** (
+                    torch.arange(
+                        0, self.dim, 2, device=self.device, dtype=torch.float32
+                    )
+                    / self.dim
+                )
             )
 
-        if seqlen > self._seq_len_cached or self._cos_cached.device != x.device or self._cos_cached.dtype != x.dtype:
+        if (
+            seqlen > self._seq_len_cached
+            or self._cos_cached.device != x.device
+            or self._cos_cached.dtype != x.dtype
+        ):
             self._seq_len_cached = seqlen
             t = torch.arange(seqlen, device=x.device, dtype=torch.float32)
 
             # Don't do einsum, it converts fp32 to fp16
             # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-            freqs = torch.outer(t, self.inv_freq.to(device=t.device, dtype=torch.float32))
+            freqs = torch.outer(
+                t, self.inv_freq.to(device=t.device, dtype=torch.float32)
+            )
             if self.scale is None:
                 self._cos_cached = torch.cos(freqs).to(x.dtype)
                 self._sin_cached = torch.sin(freqs).to(x.dtype)
             else:
                 power = (
-                    torch.arange(seqlen, dtype=self.scale.dtype, device=self.scale.device) - seqlen // 2
+                    torch.arange(
+                        seqlen, dtype=self.scale.dtype, device=self.scale.device
+                    )
+                    - seqlen // 2
                 ) / self.scale_base
-                scale = self.scale.to(device=power.device) ** rearrange(power, "s -> s 1")
+                scale = self.scale.to(device=power.device) ** rearrange(
+                    power, "s -> s 1"
+                )
 
                 # We want the multiplication by scale to happen in fp32
                 self._cos_cached = (torch.cos(freqs) * scale).to(x.dtype)
@@ -171,7 +195,9 @@ class RotaryEmbedding(nn.Module):
 
         cos_k = cos if cos_k is None else cos_k
         sin_k = sin if sin_k is None else sin_k
-        assert sin.shape == cos_k.shape == sin_k.shape == (rotary_seqlen, rotary_dim // 2)
+        assert (
+            sin.shape == cos_k.shape == sin_k.shape == (rotary_seqlen, rotary_dim // 2)
+        )
 
         q_rot = qkv[:, :, 0, :, :rotary_dim]
         q_pass = qkv[:, :, 0, :, rotary_dim:]
@@ -182,10 +208,14 @@ class RotaryEmbedding(nn.Module):
         # Splits the queries and keys in half
         q1, q2 = q_rot.chunk(2, dim=-1)
         k1, k2 = k_rot.chunk(2, dim=-1)
-        c, s = rearrange(cos[:seqlen], "s d -> s 1 d"), rearrange(sin[:seqlen], "s d -> s 1 d")
+        c, s = rearrange(cos[:seqlen], "s d -> s 1 d"), rearrange(
+            sin[:seqlen], "s d -> s 1 d"
+        )
 
         # Casts to fp32 are necessary to prevent fp16 overflow issues
-        q1, q2, k1, k2, c, s = [t.to(dtype=torch.float32) for t in [q1, q2, k1, k2, c, s]]
+        q1, q2, k1, k2, c, s = [
+            t.to(dtype=torch.float32) for t in [q1, q2, k1, k2, c, s]
+        ]
 
         # Computes the new keys and queries, recasting to original dtype
         q_rot = torch.cat([q1 * c - q2 * s, q1 * s + q2 * c], axis=-1).to(qkv.dtype)
@@ -201,7 +231,9 @@ class RotaryEmbedding(nn.Module):
             axis=2,
         )
 
-    def forward(self, qkv: torch.Tensor, seqlen_offset: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, qkv: torch.Tensor, seqlen_offset: int = 0
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Perform the forward pass.
 
         Args:
@@ -215,7 +247,10 @@ class RotaryEmbedding(nn.Module):
 
         self._update_cos_sin_cache(qkv, seqlen_offset)
 
-        return self.apply_rotary_emb_qkv(qkv, self._sin_cached[seqlen_offset:], self._cos_cached[seqlen_offset:])
+        return self.apply_rotary_emb_qkv(
+            qkv, self._sin_cached[seqlen_offset:], self._cos_cached[seqlen_offset:]
+        )
+
 
 def _update_kv_cache(kv, inference_params, layer_idx):
     """kv: (batch_size, seqlen, 2, nheads, head_dim) or (batch_size, 1, 2, nheads, head_dim)
@@ -224,8 +259,13 @@ def _update_kv_cache(kv, inference_params, layer_idx):
     num_heads, head_dim = kv.shape[-2:]
     if layer_idx not in inference_params.key_value_memory_dict:
         kv_cache = torch.empty(
-            inference_params.max_batch_size, inference_params.max_sequence_len, 2,
-            num_heads, head_dim, dtype=kv.dtype, device=kv.device
+            inference_params.max_batch_size,
+            inference_params.max_sequence_len,
+            2,
+            num_heads,
+            head_dim,
+            dtype=kv.dtype,
+            device=kv.device,
         )
         inference_params.key_value_memory_dict[layer_idx] = kv_cache
     else:
@@ -236,8 +276,12 @@ def _update_kv_cache(kv, inference_params, layer_idx):
     batch_end = batch_start + kv.shape[0]
     sequence_start = inference_params.sequence_len_offset
     sequence_end = sequence_start + kv.shape[1]
-    assert batch_end <= (kv_cache.shape[0] if kv_cache is not None else v_cache.shape[0])
-    assert sequence_end <= (kv_cache.shape[1] if kv_cache is not None else v_cache.shape[2])
+    assert batch_end <= (
+        kv_cache.shape[0] if kv_cache is not None else v_cache.shape[0]
+    )
+    assert sequence_end <= (
+        kv_cache.shape[1] if kv_cache is not None else v_cache.shape[2]
+    )
 
     assert kv_cache is not None
     kv_cache[batch_start:batch_end, sequence_start:sequence_end, ...] = kv
@@ -254,7 +298,12 @@ class MLP(nn.Module):
 
     """
 
-    def __init__(self, config: PretrainedConfig, n_inner: Optional[int] = None, act_fn: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        config: PretrainedConfig,
+        n_inner: Optional[int] = None,
+        act_fn: Optional[str] = None,
+    ) -> None:
         super().__init__()
 
         act_fn = config.activation_function if act_fn is None else act_fn
@@ -267,17 +316,46 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(n_inner, config.n_embd)
         self.act = ACT2FN[act_fn]
 
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
-        old_keys = [prefix + "fc_in.weight", prefix + "fc_out.weight", prefix + "fc_in.bias", prefix + "fc_out.bias"]
-        new_keys = [prefix + "fc1.weight", prefix + "fc2.weight", prefix + "fc1.bias", prefix + "fc2.bias"]
-        
-        if all(k in state_dict for k in old_keys) and not all(k in state_dict for k in new_keys):
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        old_keys = [
+            prefix + "fc_in.weight",
+            prefix + "fc_out.weight",
+            prefix + "fc_in.bias",
+            prefix + "fc_out.bias",
+        ]
+        new_keys = [
+            prefix + "fc1.weight",
+            prefix + "fc2.weight",
+            prefix + "fc1.bias",
+            prefix + "fc2.bias",
+        ]
+
+        if all(k in state_dict for k in old_keys) and not all(
+            k in state_dict for k in new_keys
+        ):
             # Older version of `MLP` saved with different key names.
             for old_key, new_key in zip(old_keys, new_keys):
                 state_dict[new_key] = state_dict.pop(old_key)
 
-        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
-    
+        return super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
     def forward(self, hidden_states: torch.FloatTensor) -> torch.FloatTensor:
         hidden_states = self.fc1(hidden_states)
         hidden_states = self.act(hidden_states)
@@ -293,8 +371,14 @@ class FusedMLP(nn.Module):
         https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/ops/fused_dense.py.
 
     """
-    def __init__(self, config: PretrainedConfig, n_inner: Optional[int] = None, act_fn: Optional[str] = None, 
-                 raise_on_missing: bool = False) -> None:
+
+    def __init__(
+        self,
+        config: PretrainedConfig,
+        n_inner: Optional[int] = None,
+        act_fn: Optional[str] = None,
+        raise_on_missing: bool = False,
+    ) -> None:
         super().__init__()
 
         act_fn = config.activation_function if act_fn is None else act_fn
@@ -305,11 +389,12 @@ class FusedMLP(nn.Module):
 
         gelu_activations = ["gelu_new", "gelu_fast", "gelu_approx"]
         activation = "gelu_approx" if act_fn in gelu_activations else "relu"
-           
+
         self.mlp = MLP(config, n_inner=n_inner, act_fn=act_fn)
-    
+
     def forward(self, hidden_states: torch.FloatTensor) -> torch.FloatTensor:
         return self.mlp(hidden_states)
+
 
 class SelfAttention(nn.Module):
     """Implement the scaled dot product attention with softmax.
@@ -322,6 +407,7 @@ class SelfAttention(nn.Module):
         attention_dropout: The dropout rate to apply to the attention
                            (default: 0.0)
     """
+
     def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0):
         super().__init__()
         self.causal = causal
@@ -341,22 +427,25 @@ class SelfAttention(nn.Module):
         causal = self.causal if causal is None else causal
         q, k, v = qkv.unbind(dim=2)
         softmax_scale = self.softmax_scale or 1.0 / math.sqrt(q.shape[-1])
-        scores = torch.einsum('bthd,bshd->bhts', q, k * softmax_scale)
+        scores = torch.einsum("bthd,bshd->bhts", q, k * softmax_scale)
         if key_padding_mask is not None:
-            padding_mask = torch.full((batch_size, seqlen), -10000.0, dtype=scores.dtype,
-                                      device=scores.device)
+            padding_mask = torch.full(
+                (batch_size, seqlen), -10000.0, dtype=scores.dtype, device=scores.device
+            )
             padding_mask.masked_fill_(key_padding_mask, 0.0)
             # TD [2022-09-30]: Adding is faster than masked_fill_ (idk why, just better kernel I guess)
-            scores = scores + rearrange(padding_mask, 'b s -> b 1 1 s')
+            scores = scores + rearrange(padding_mask, "b s -> b 1 1 s")
         if causal:
             # "triu_tril_cuda_template" not implemented for 'BFloat16'
             # So we have to construct the mask in float
-            causal_mask = torch.triu(torch.full((seqlen, seqlen), -10000.0, device=scores.device), 1)
+            causal_mask = torch.triu(
+                torch.full((seqlen, seqlen), -10000.0, device=scores.device), 1
+            )
             # TD [2022-09-30]: Adding is faster than masked_fill_ (idk why, just better kernel I guess)
             scores = scores + causal_mask.to(dtype=scores.dtype)
         attention = torch.softmax(scores, dim=-1, dtype=v.dtype)
         attention_drop = self.drop(attention)
-        output = torch.einsum('bhts,bshd->bthd', attention_drop, v)
+        output = torch.einsum("bhts,bshd->bthd", attention_drop, v)
         return output
 
 
@@ -371,6 +460,7 @@ class CrossAttention(nn.Module):
         attention_dropout: The dropout rate to apply to the attention
                            (default: 0.0)
     """
+
     def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0):
         super().__init__()
         self.causal = causal
@@ -390,30 +480,42 @@ class CrossAttention(nn.Module):
         batch_size, seqlen_q = q.shape[0], q.shape[1]
         causal = self.causal if causal is None else causal
         seqlen_k = kv.shape[1]
-        assert kv.shape[0] == batch_size and kv.shape[3] == q.shape[2] and kv.shape[4] == q.shape[3]
+        assert (
+            kv.shape[0] == batch_size
+            and kv.shape[3] == q.shape[2]
+            and kv.shape[4] == q.shape[3]
+        )
         k, v = kv.unbind(dim=2)
         softmax_scale = self.softmax_scale or 1.0 / math.sqrt(q.shape[-1])
-        scores = torch.einsum('bthd,bshd->bhts', q, k * softmax_scale)
+        scores = torch.einsum("bthd,bshd->bhts", q, k * softmax_scale)
         if key_padding_mask is not None:
-            padding_mask = torch.full((batch_size, seqlen_k), -10000.0, dtype=scores.dtype,
-                                      device=scores.device)
+            padding_mask = torch.full(
+                (batch_size, seqlen_k),
+                -10000.0,
+                dtype=scores.dtype,
+                device=scores.device,
+            )
             padding_mask.masked_fill_(key_padding_mask, 0.0)
             # TD [2022-09-30]: Adding is faster than masked_fill_ (idk why, just better kernel I guess)
-            scores = scores + rearrange(padding_mask, 'b s -> b 1 1 s')
+            scores = scores + rearrange(padding_mask, "b s -> b 1 1 s")
         if causal:
             # "triu_tril_cuda_template" not implemented for 'BFloat16'
             # So we have to construct the mask in float
-            causal_mask = torch.triu(torch.full((seqlen_q, seqlen_k), -10000.0,
-                                                device=scores.device), 1)
+            causal_mask = torch.triu(
+                torch.full((seqlen_q, seqlen_k), -10000.0, device=scores.device), 1
+            )
             # TD [2022-09-30]: Adding is faster than masked_fill_ (idk why, just better kernel I guess)
             scores = scores + causal_mask.to(dtype=scores.dtype)
         attention = torch.softmax(scores, dim=-1, dtype=v.dtype)
         attention_drop = self.drop(attention)
-        output = torch.einsum('bhts,bshd->bthd', attention_drop, v)
+        output = torch.einsum("bhts,bshd->bthd", attention_drop, v)
         return output
 
+
 def find_mha_dims(
-    config: PretrainedConfig, n_head: Optional[int] = None, head_dim: Optional[int] = None
+    config: PretrainedConfig,
+    n_head: Optional[int] = None,
+    head_dim: Optional[int] = None,
 ) -> Tuple[int, int]:
     """Validate and return the number of heads and head dimension for multi-head attention.
 
@@ -469,7 +571,7 @@ class MHA(nn.Module):
         flash_attn: Optional[bool] = True,
         cutlass_attn: Optional[bool] = False,
         flash_rotary: Optional[bool] = True,
-        raise_on_missing: Optional[bool] = False
+        raise_on_missing: Optional[bool] = False,
     ) -> None:
         super().__init__()
 
@@ -483,7 +585,9 @@ class MHA(nn.Module):
 
         self.causal = causal
         self.layer_idx = layer_idx
-        self.rotary_emb_dim = rotary_dim if rotary_dim is not None else getattr(config, "rotary_dim", 0)
+        self.rotary_emb_dim = (
+            rotary_dim if rotary_dim is not None else getattr(config, "rotary_dim", 0)
+        )
         self.fused_dense = fused_dense
         self.flash_attn = flash_attn
         self.cutlass_attn = cutlass_attn
@@ -495,22 +599,34 @@ class MHA(nn.Module):
             rotary_kwargs = {"device": device}
             if rotary_emb_scale_base is not None and rotary_emb_scale_base > 0.0:
                 rotary_kwargs["scale_base"] = rotary_emb_scale_base
-            
+
             self.rotary_emb = RotaryEmbedding(self.rotary_emb_dim, **rotary_kwargs)
         else:
             pass
 
-        self.Wqkv = nn.Linear(self.hidden_size, 3 * self.op_size, bias=bias, **factory_kwargs)
-        self.out_proj = nn.Linear(self.op_size, self.hidden_size, bias=bias, **factory_kwargs)
+        self.Wqkv = nn.Linear(
+            self.hidden_size, 3 * self.op_size, bias=bias, **factory_kwargs
+        )
+        self.out_proj = nn.Linear(
+            self.op_size, self.hidden_size, bias=bias, **factory_kwargs
+        )
 
-        self.inner_attn = SelfAttention(causal=causal, softmax_scale=softmax_scale, attention_dropout=dropout)
-        self.inner_cross_attn = CrossAttention(causal=causal, softmax_scale=softmax_scale, attention_dropout=dropout)
+        self.inner_attn = SelfAttention(
+            causal=causal, softmax_scale=softmax_scale, attention_dropout=dropout
+        )
+        self.inner_cross_attn = CrossAttention(
+            causal=causal, softmax_scale=softmax_scale, attention_dropout=dropout
+        )
 
-    def _update_kv_cache(self, kv: torch.FloatTensor, inference_params: InferenceParams) -> None:
+    def _update_kv_cache(
+        self, kv: torch.FloatTensor, inference_params: InferenceParams
+    ) -> None:
         """kv: (batch_size, seqlen, 2, nheads, head_dim) or (batch_size, 1, 2, nheads, head_dim)
         Adapted from https://github.com/Dao-AILab/flash-attention."""
 
-        assert self.layer_idx is not None, "Generation requires layer_idx in the constructor"
+        assert (
+            self.layer_idx is not None
+        ), "Generation requires layer_idx in the constructor"
 
         return _update_kv_cache(kv, inference_params, self.layer_idx)
 
@@ -523,7 +639,7 @@ class MHA(nn.Module):
         max_seqlen: Optional[int] = None,
         mixer_subset: Optional[torch.LongTensor] = None,
         past_cache: Optional[InferenceParams] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """Perform the forward pass.
 
@@ -570,7 +686,9 @@ class MHA(nn.Module):
         assert x_kv is None and mixer_subset is None
 
         qkv = self.Wqkv(x)
-        qkv = rearrange(qkv, "... (three h d) -> ... three h d", three=3, d=self.head_dim)
+        qkv = rearrange(
+            qkv, "... (three h d) -> ... three h d", three=3, d=self.head_dim
+        )
 
         if past_cache is None:
             if self.rotary_emb_dim > 0:
@@ -591,6 +709,7 @@ class MHA(nn.Module):
         out = self.out_proj(out)
 
         return out if not self.return_residual else (out, x)
+
 
 class ParallelBlock(nn.Module):
     """Parallel block.
@@ -613,14 +732,17 @@ class ParallelBlock(nn.Module):
         self.block_idx = block_idx
 
         self.mixer = MHA(config=config, **mixer, layer_idx=block_idx)
-        mlp_cls = mlp.pop('mlp_cls')
-        if mlp_cls == 'fused_mlp':
+        mlp_cls = mlp.pop("mlp_cls")
+        if mlp_cls == "fused_mlp":
             self.mlp = FusedMLP(config=config, **mlp)
         else:
             self.mlp = MLP(config=config, **mlp)
 
-    def forward(self, hidden_states: torch.FloatTensor, 
-                past_cache: Optional[torch.FloatTensor] = None) -> torch.FloatTensor:
+    def forward(
+        self,
+        hidden_states: torch.FloatTensor,
+        past_cache: Optional[torch.FloatTensor] = None,
+    ) -> torch.FloatTensor:
         residual = hidden_states
         hidden_states = self.ln(hidden_states)
 
@@ -634,6 +756,7 @@ class ParallelBlock(nn.Module):
         hidden_states = attn_outputs + feed_forward_hidden_states + residual
 
         return hidden_states
+
 
 class CausalLMHead(nn.Module):
     """Causal Language Modeling head.
@@ -672,7 +795,9 @@ class CausalLMLoss(nn.Module):
         self.shift_labels = shift_labels
         self.loss_fct = nn.CrossEntropyLoss()
 
-    def forward(self, logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def forward(
+        self, logits: torch.FloatTensor, labels: torch.LongTensor
+    ) -> torch.FloatTensor:
         if self.shift_labels:
             logits = logits[..., :-1, :].contiguous()
             labels = labels[..., 1:].contiguous()
@@ -680,6 +805,7 @@ class CausalLMLoss(nn.Module):
         loss = self.loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
 
         return loss
+
 
 class MixFormerSequentialPreTrainedModel(PreTrainedModel):
     """MixFormer (sequential for DeepSpeed) pre-trained model."""
@@ -691,11 +817,15 @@ class MixFormerSequentialPreTrainedModel(PreTrainedModel):
     def __init__(self, *inputs, **kwargs) -> None:
         super().__init__(*inputs, **kwargs)
 
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs) -> Dict[str, Any]:
+    def prepare_inputs_for_generation(
+        self, input_ids, past_key_values=None, **kwargs
+    ) -> Dict[str, Any]:
         if "use_cache" in kwargs and not kwargs["use_cache"]:
             return {"input_ids": input_ids}
 
-        if past_key_values is None or not (isinstance(past_key_values, InferenceParams)):
+        if past_key_values is None or not (
+            isinstance(past_key_values, InferenceParams)
+        ):
             past_key_values = InferenceParams(
                 max_batch_size=input_ids.shape[0],
                 max_sequence_len=self.config.n_positions,
@@ -716,7 +846,9 @@ class MixFormerSequentialForCausalLM(MixFormerSequentialPreTrainedModel):
     """MixFormer (sequential for DeepSpeed) for Causal Language Modeling."""
 
     _keys_to_ignore_on_load_missing = [""]
-    _keys_to_ignore_on_load_unexpected = [r"layers\.\d+\.mlp.(fc_in|fc_out)\.(weight|bias)"]
+    _keys_to_ignore_on_load_unexpected = [
+        r"layers\.\d+\.mlp.(fc_in|fc_out)\.(weight|bias)"
+    ]
 
     def __init__(self, config: MixFormerSequentialConfig) -> None:
         super().__init__(config)
@@ -759,10 +891,12 @@ class MixFormerSequentialForCausalLM(MixFormerSequentialPreTrainedModel):
         self.layers[-1].linear = new_embeddings
 
     def forward(
-        self, input_ids: torch.LongTensor, labels: Optional[torch.LongTensor] = None, 
-        past_key_values: Optional[torch.FloatTensor] = None, **kwargs
+        self,
+        input_ids: torch.LongTensor,
+        labels: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[torch.FloatTensor] = None,
+        **kwargs,
     ) -> CausalLMOutputWithPast:
-
         if not past_key_values:
             lm_logits = self.layers(input_ids)
         else:
@@ -774,5 +908,7 @@ class MixFormerSequentialForCausalLM(MixFormerSequentialPreTrainedModel):
         loss = None
         if labels is not None:
             loss = self.loss(lm_logits, labels)
-        
-        return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values)
+
+        return CausalLMOutputWithPast(
+            loss=loss, logits=lm_logits, past_key_values=past_key_values
+        )

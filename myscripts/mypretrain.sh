@@ -1,10 +1,10 @@
 # #!/bin/bash
-deepspeed ../LLaVA/llava/train/train_mem.py \
-    --deepspeed ../LLaVA/scripts/zero2.json \
-    --model_name_or_path ../checkpoints/phi-1_5 \
+deepspeed ../../LLaVA/llava/train/train_mem.py \
+    --deepspeed ../../LLaVA/scripts/zero2.json \
+    --model_name_or_path ../../checkpoints/phi-1_5 \
     --version plain \
-    --data_path ../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder ../data/LLaVA-Pretrain/images \
+    --data_path ../../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
+    --image_folder ../../data/LLaVA-Pretrain/images \
     --vision_tower openai/clip-vit-base-patch16 \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
@@ -12,11 +12,11 @@ deepspeed ../LLaVA/llava/train/train_mem.py \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --bf16 True \
-    --output_dir ../checkpoints/llava_phi_new_test \
+    --output_dir ../../checkpoints/llava_phi_pretrained \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 32 \
+    --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \

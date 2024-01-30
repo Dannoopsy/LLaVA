@@ -50,4 +50,3 @@ RUN cd /tmp && \
     ./dotnet-install.sh --channel 7.0 && \
     ./dotnet-install.sh --channel 3.1 && \
     rm ./dotnet-install.sh
-

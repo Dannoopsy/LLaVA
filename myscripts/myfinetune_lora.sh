@@ -1,15 +1,15 @@
 # +
 # #!/bin/bash
 
-deepspeed ../LLaVA/llava/train/train_mem.py \
+deepspeed ../../LLaVA/llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
-    --deepspeed ../LLaVA/scripts/zero3.json \
-    --model_name_or_path ../checkpoints/phi-1_5 \
+    --deepspeed ../../LLaVA/scripts/zero3.json \
+    --model_name_or_path ../../checkpoints/phi-1_5 \
     --version v1 \
-    --data_path ../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder ../data/LLaVA-Pretrain/images \
+    --data_path ../../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
+    --image_folder ../../data/LLaVA-Pretrain/images \
     --vision_tower openai/clip-vit-base-patch16 \
-    --pretrain_mm_mlp_adapter ../checkpoints/llava_phi_new_lora/mm_projector.bin \
+    --pretrain_mm_mlp_adapter ../../checkpoints/llava_phi_pretrained/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -17,7 +17,7 @@ deepspeed ../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../checkpoints/llava_phi_new \
+    --output_dir ../../checkpoints/llava_phi_pretrained_lora \
     --num_train_epochs 1 \
     --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 4 \

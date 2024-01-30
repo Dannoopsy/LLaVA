@@ -156,7 +156,6 @@ def load_pretrained_model(
                     model_path, low_cpu_mem_usage=True, **kwargs
                 )
             else:
-                
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
                 model = LlavaLlamaForCausalLM.from_pretrained(
                     model_path, low_cpu_mem_usage=True, **kwargs
@@ -196,7 +195,6 @@ def load_pretrained_model(
     image_processor = None
 
     if "llava" in model_name.lower():
-        
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
         # print('len(tokenizer)', len(tokenizer))

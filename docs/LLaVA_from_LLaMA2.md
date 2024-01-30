@@ -11,7 +11,7 @@ You need to apply for and download the latest Llama 2 checkpoints to start your 
 
 Please checkout [`pretrain.sh`](https://github.com/haotian-liu/LLaVA/blob/main/scripts/pretrain.sh), [`finetune.sh`](https://github.com/haotian-liu/LLaVA/blob/main/scripts/finetune.sh), [`finetune_lora.sh`](https://github.com/haotian-liu/LLaVA/blob/main/scripts/finetune_lora.sh).
 
-## LLaVA (based on Llama 2), What is different? 
+## LLaVA (based on Llama 2), What is different?
 
 :volcano: How is the new LLaVA based on Llama 2 different from Llama 1? The comparisons of the training process are described:
 - **Pre-training**. The pre-trained base LLM is changed from Llama 1 to Llama 2
@@ -26,4 +26,3 @@ Please checkout [`pretrain.sh`](https://github.com/haotian-liu/LLaVA/blob/main/s
 
 
 <img src="../images/llava_example_cmp.png" width="100%">
-

@@ -90,7 +90,7 @@ def eval_model(args):
     images_tensor = process_images(images, image_processor, model.config).to(
         model.device, dtype=torch.float16
     )
-
+    print("prompt", prompt, "\n prompt ended")
     input_ids = (
         tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
         .unsqueeze(0)
