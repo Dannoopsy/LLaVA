@@ -150,6 +150,7 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         self.model.layers = test_model.layers
         self.pretraining_tp = 0  # config.pretraining_tp
         self.vocab_size = config.vocab_size
+        self.gradient_checkpointing = False
 
         self.loss = CausalLMLoss()
         # Initialize weights and apply final processing
@@ -185,10 +186,16 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
-        alpha=1,
+        alpha=1, 
         return_norms=False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
+        # torch.cuda.empty_cache()
         # past_key_values = None
+
+        # n = 0
+        # for p in self.parameters():
+        #     n += p.numel()
+        # print('number of params, mln', int(n / 1e6))
         if inputs_embeds is None and images is not None:
             (
                 input_ids,
@@ -198,40 +205,41 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
                 inputs_embeds,
                 labels,
             ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                labels,
-                images,
-                alpha,
+                input_ids, position_ids, attention_mask, past_key_values, labels, images, alpha
             )
-
+            
         if inputs_embeds is None:
             inputs_embeds = self.model.layers[0](input_ids)
 
         norms = []
-        id1, id2 = 142, 142 + 14 * 14
+        id1, id2 = 142, 142 + 14*14
         norm = torch.linalg.norm(inputs_embeds[0], 2, -1)
-        # norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
-        norms.append(norm.mean().item())
+        norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
+        # norms.append(norm.mean().item())
         # print('inputs_embeds', inputs_embeds.shape)
         # print('inputs_embeds', inputs_embeds[:, -3:, :4])
         if False and not past_key_values:
             lm_logits = self.model.layers[1:](inputs_embeds)
         else:
+            
             hidden_layer = inputs_embeds
             # print('hidden_layer ', hidden_layer.shape)
             for module in self.model.layers[1:-1]:
                 # print('past_key_values', past_key_values)
-                hidden_layer = module(hidden_layer, past_cache=past_key_values)
+                if self.gradient_checkpointing and self.training:
+                    hidden_layer = self._gradient_checkpointing_func(
+                        decoder_layer.__call__, 
+                        hidden_layer
+                    )   
+                else:    
+                    hidden_layer = module(hidden_layer, past_cache=past_key_values)
                 norm = torch.linalg.norm(hidden_layer[0], 2, -1)
-                # norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
-                norms.append(norm.mean().item())
+                norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
+                # norms.append(norm.mean().item())
             lm_logits = self.model.layers[-1](hidden_layer)
 
         for n, c in self.model.named_children():
-            if "loss" not in n.lower():
+            if 'loss' not in n.lower():
                 # print(n)
                 trus = 0
                 falses = 0
@@ -247,13 +255,8 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
             loss = self.loss(lm_logits, labels)
 
         if return_norms:
-            return (
-                CausalLMOutputWithPast(
-                    loss=loss, logits=lm_logits, past_key_values=past_key_values
-                ),
-                norms,
-            )
-
+            return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values), norms
+        
         return CausalLMOutputWithPast(
             loss=loss, logits=lm_logits, past_key_values=past_key_values
         )

@@ -2,14 +2,14 @@
 
 deepspeed ../../LLaVA/llava/train/train_mem.py \
     --deepspeed ../../LLaVA/scripts/zero3.json \
-    --model_name_or_path ../../checkpoints/oo-phi-1_5 \
+    --model_name_or_path ../../checkpoints/TinyLlama-1.1B-Chat-v1.0  \
     --version v1 \
-    --data_path ../../data/finetunedata/llava_v1_5_mix665k.json \
-    --val_path ../../data/vqav2val/dataval80537.json \
+    --data_path ../../data/finetunedata/corrected_data.json \
+    --val_path ../../data/vqav2val/dataval.json \
     --image_folder ../../data/finetunedata \
     --val_image_folder ../../data/vqav2val \
     --vision_tower openai/clip-vit-base-patch16 \
-    --pretrain_mm_mlp_adapter ../../checkpoints/llava_oophi_pretrain/mm_projector.bin \
+    --pretrain_mm_mlp_adapter ../../checkpoints/llava_tinyllama_pretrained/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -17,11 +17,11 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../../checkpoints/llava_oophi \
-    --num_train_epochs 2 \
-    --eval_steps 0.25 \
+    --output_dir ../../checkpoints/llava_tinyllama \
+    --eval_steps 0.1 \
+    --num_train_epochs 1 \
     --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 8 \
+    --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 16 \
     --eval_accumulation_steps 16 \
     --evaluation_strategy "steps" \
@@ -35,7 +35,7 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 2048 \
-    --gradient_checkpointing False \
+    --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to wandb

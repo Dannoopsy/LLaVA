@@ -2,12 +2,14 @@
 # #!/bin/bash
 
 deepspeed ../../LLaVA/llava/train/train_mem.py \
-    --lora_enable True --lora_r 1 --lora_alpha 2 --mm_projector_lr 2e-5 \
+    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed ../../LLaVA/scripts/zero3.json \
-    --model_name_or_path Open-Orca/oo-phi-1_5 \
+    --model_name_or_path ../../checkpoints/oo-phi-1_5 \
     --version v1 \
-    --data_path ../../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder ../../data/LLaVA-Pretrain/images \
+    --data_path ../../data/finetunedata/corrected_data.json \
+    --val_path ../../data/vqav2val/dataval80537.json \
+    --image_folder ../../data/finetunedata \
+    --val_image_folder ../../data/vqav2val \
     --vision_tower openai/clip-vit-base-patch16 \
     --pretrain_mm_mlp_adapter ../../checkpoints/llava_oophi_pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
@@ -17,12 +19,14 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../../checkpoints/llava_oophi_lora_extratiny \
+    --output_dir ../../checkpoints/llava_oophi_lora \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
+    --eval_steps 0.0001 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 16 \
-    --evaluation_strategy "no" \
+    --gradient_accumulation_steps 64 \
+    --eval_accumulation_steps 16 \
+    --evaluation_strategy "steps" \
     --save_strategy "steps" \
     --save_steps 50000 \
     --save_total_limit 1 \
@@ -36,4 +40,4 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --gradient_checkpointing False \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
-    --report_to wandb
+    --report_to none
