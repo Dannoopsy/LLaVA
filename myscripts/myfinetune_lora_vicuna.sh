@@ -1,15 +1,16 @@
-/LLaVA# +
-# #!/bin/bash
+#!/bin/bash
 
-deepspeed ../LLaVA/llava/train/train_mem.py \
+deepspeed ../../LLaVA/llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
-    --deepspeed ../LLaVA/scripts/zero3.json \
-    --model_name_or_path ./checkpoints/vicuna-7b-v1.5-16k \
+    --deepspeed ../../LLaVA/scripts/zero3.json \
+    --model_name_or_path lmsys/vicuna-7b-v1.5-16k \
     --version v1 \
-    --data_path ../data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json \
-    --image_folder ../data/LLaVA-Pretrain/images \
-    --vision_tower openai/clip-vit-large-patch14-336 \
-    --pretrain_mm_mlp_adapter ../LLaVA/llava-v1.5-7b/mm_projector.bin \
+    --data_path ../../data/finetunedata/corrected_data.json \
+    --val_path ../../data/vqav2val/dataval20000.json \
+    --image_folder ../../data/finetunedata \
+    --val_image_folder ../../data/vqav2val \
+    --vision_tower openai/clip-vit-base-patch16 \
+    --pretrain_mm_mlp_adapter ../../checkpoints/vicuna_pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -17,12 +18,13 @@ deepspeed ../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../checkpoints/llava_phi_new \
+    --output_dir ../../checkpoints/llava_vicuna \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 1 \
+    --eval_steps 0.2 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 128 \
-    --evaluation_strategy "no" \
+    --gradient_accumulation_steps 32 \
+    --evaluation_strategy "steps" \
     --save_strategy "steps" \
     --save_steps 50000 \
     --save_total_limit 1 \

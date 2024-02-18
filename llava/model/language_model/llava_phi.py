@@ -13,30 +13,21 @@
 #    limitations under the License.
 
 
+import importlib
+import sys
 from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from transformers import AutoConfig, AutoModelForCausalLM
-
-my_cfg_phi = AutoConfig.from_pretrained(
-    "/home/d.belopolskikh/home/llava/checkpoints/oo-phi-1_5/", trust_remote_code=True
-)
-import importlib
-
-from transformers_modules.configuration_phi import PhiConfig
-
-oo_phi_module = importlib.import_module(
-    "transformers_modules.oo-phi-1_5.modeling_mixformer_sequential"
-)
-MixFormerSequentialForCausalLM = oo_phi_module.MixFormerSequentialForCausalLM
-
-import sys
-
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-sys.path.append("/home/d.belopolskikh/home/llava")
-from LLaVA.llava.model.llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
+from ...lmodels.oophi15.configuration_mixformer_sequential import \
+    MixFormerSequentialConfig as PhiConfig
+from ...lmodels.oophi15.modeling_mixformer_sequential import \
+    MixFormerSequentialForCausalLM
+# sys.path.append("../../../")
+from ..llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
 
 
 def _make_causal_mask(
@@ -186,7 +177,7 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         output_hidden_states: Optional[bool] = None,
         images: Optional[torch.FloatTensor] = None,
         return_dict: Optional[bool] = None,
-        alpha=1, 
+        alpha=1,
         return_norms=False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         # torch.cuda.empty_cache()
@@ -205,41 +196,61 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
                 inputs_embeds,
                 labels,
             ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids, position_ids, attention_mask, past_key_values, labels, images, alpha
+                input_ids,
+                position_ids,
+                attention_mask,
+                past_key_values,
+                labels,
+                images,
+                alpha,
             )
-            
+
         if inputs_embeds is None:
+            # print('inputs_embeds is None')
             inputs_embeds = self.model.layers[0](input_ids)
 
         norms = []
-        id1, id2 = 142, 142 + 14*14
+        id1, id2 = 142, 142 + 14 * 14
         norm = torch.linalg.norm(inputs_embeds[0], 2, -1)
-        norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
+        norms.append(
+            [
+                (norm[:id1].sum() + norm[id2:].sum()).item() / (len(norm) + id1 - id2),
+                norm[id1:id2].mean().item(),
+            ]
+        )
         # norms.append(norm.mean().item())
         # print('inputs_embeds', inputs_embeds.shape)
         # print('inputs_embeds', inputs_embeds[:, -3:, :4])
+        # print('past_kv', inputs_embeds.shape, past_key_values)
+        # raise Exception()
         if False and not past_key_values:
             lm_logits = self.model.layers[1:](inputs_embeds)
         else:
-            
             hidden_layer = inputs_embeds
             # print('hidden_layer ', hidden_layer.shape)
             for module in self.model.layers[1:-1]:
                 # print('past_key_values', past_key_values)
                 if self.gradient_checkpointing and self.training:
                     hidden_layer = self._gradient_checkpointing_func(
-                        decoder_layer.__call__, 
-                        hidden_layer
-                    )   
-                else:    
+                        decoder_layer.__call__, hidden_layer, past_key_values
+                    )
+                else:
+                    # print('past_kv', inputs_embeds.shape, [t.shape for t in past_key_values.key_value_memory_dict.values()])
+                    # raise Exception()
                     hidden_layer = module(hidden_layer, past_cache=past_key_values)
                 norm = torch.linalg.norm(hidden_layer[0], 2, -1)
-                norms.append([(norm[:id1].sum() + norm[id2:].sum()).item()/(len(norm)+id1 - id2), norm[id1:id2].mean().item()])
+                norms.append(
+                    [
+                        (norm[:id1].sum() + norm[id2:].sum()).item()
+                        / (len(norm) + id1 - id2),
+                        norm[id1:id2].mean().item(),
+                    ]
+                )
                 # norms.append(norm.mean().item())
             lm_logits = self.model.layers[-1](hidden_layer)
 
         for n, c in self.model.named_children():
-            if 'loss' not in n.lower():
+            if "loss" not in n.lower():
                 # print(n)
                 trus = 0
                 falses = 0
@@ -255,8 +266,13 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
             loss = self.loss(lm_logits, labels)
 
         if return_norms:
-            return CausalLMOutputWithPast(loss=loss, logits=lm_logits, past_key_values=past_key_values), norms
-        
+            return (
+                CausalLMOutputWithPast(
+                    loss=loss, logits=lm_logits, past_key_values=past_key_values
+                ),
+                norms,
+            )
+
         return CausalLMOutputWithPast(
             loss=loss, logits=lm_logits, past_key_values=past_key_values
         )

@@ -56,6 +56,8 @@ class CustomDataset(Dataset):
             qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
 
         conv = conv_templates[args.conv_mode].copy()
+        # print(conv)
+        # raise Exception
         conv.append_message(conv.roles[0], qs)
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
@@ -64,7 +66,7 @@ class CustomDataset(Dataset):
         image_tensor = process_images([image], self.image_processor, self.model_config)[
             0
         ]
-
+        # print('prompt', prompt)
         input_ids = tokenizer_image_token(
             prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
         )
@@ -125,7 +127,7 @@ def eval_model(args):
     data_loader = create_data_loader(
         questions, args.image_folder, tokenizer, image_processor, model.config
     )
-
+    # print('args.max_new_tokens', args.max_new_tokens)
     for (input_ids, image_tensor), line in tqdm(
         zip(data_loader, questions), total=len(questions)
     ):
@@ -135,31 +137,53 @@ def eval_model(args):
         input_ids = input_ids.to(device="cuda", non_blocking=True)
 
         with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=image_tensor.to(
-                    dtype=torch.float16, device="cuda", non_blocking=True
-                ),
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                num_beams=args.num_beams,
-                max_new_tokens=args.max_new_tokens,
-                use_cache=True,
-            )
+            # output_ids = model.generate(
+            #     input_ids,
+            #     images=image_tensor.to(
+            #         dtype=torch.float16, device="cuda", non_blocking=True
+            #     ),
+            #     do_sample=True if args.temperature > 0 else False,
+            #     temperature=args.temperature,
+            #     top_p=args.top_p,
+            #     num_beams=args.num_beams,
+            #     max_new_tokens=args.max_new_tokens,
+            #     use_cache=True,
+            # )
+            input_ids = input_ids[0].tolist()
+            out_ids = []
+            # model.cpu()
+            # print('input_ids',input_ids)
+            for i in range(args.max_new_tokens):
+                input_tns = torch.tensor(input_ids).unsqueeze(0)
+                # print('input_tns.shape', input_tns.shape)
+                out = model(
+                    input_ids=input_tns.cuda(),
+                    images=image_tensor.to(
+                        dtype=torch.float16, device="cuda", non_blocking=True
+                    ),
+                )
+                # out = model(input_ids=input_tns, images=image_tensor.to(dtype=torch.float16, device="cpu", non_blocking=True))
+                logits = out.logits
+                new_id = logits.argmax(-1)[-1, -1].item()
+                # print(tokenizer.decode(new_id), new_id)
+                if new_id == tokenizer.eos_token_id:
+                    break
+                out_ids.append(new_id)
+                input_ids.append(new_id)
 
-        input_token_len = input_ids.shape[1]
-        n_diff_input_output = (
-            (input_ids != output_ids[:, :input_token_len]).sum().item()
-        )
-        if n_diff_input_output > 0:
-            print(
-                f"[Warning] {n_diff_input_output} output_ids are not the same as the input_ids"
-            )
-        outputs = tokenizer.batch_decode(
-            output_ids[:, input_token_len:], skip_special_tokens=True
-        )[0]
-        outputs = outputs.strip()
+        # input_token_len = input_ids.shape[1]
+        # n_diff_input_output = (
+        #     (input_ids != output_ids[:, :input_token_len]).sum().item()
+        # )
+        # if n_diff_input_output > 0:
+        #     print(
+        #         f"[Warning] {n_diff_input_output} output_ids are not the same as the input_ids"
+        #     )
+        # outputs = tokenizer.batch_decode(
+        #     output_ids[:, input_token_len:], skip_special_tokens=True
+        # )[0]
+        # outputs = outputs.strip()
+        outputs = tokenizer.decode(out_ids)
 
         ans_id = shortuuid.uuid()
         ans_file.write(

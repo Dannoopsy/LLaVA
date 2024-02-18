@@ -132,14 +132,22 @@ class LlavaMetaForCausalLM(ABC):
         # print(past_key_values)
         # print('args:', 'input_ids', input_ids, 'position_ids', position_ids, attention_mask, 'labels', labels, images)
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
-            print("without images")
+            # print("without images")
             if (
                 past_key_values is not None
                 and vision_tower is not None
                 and images is not None
                 and input_ids.shape[1] == 1
             ):
-                target_shape = past_key_values[-1][-1].shape[-2] + 1
+                # print(past_key_values)
+                if hasattr(past_key_values, "max_sequence_len"):
+                    target_shape = attention_mask.shape[1] + 1
+                else:
+                    target_shape = past_key_values[-1][-1].shape[-2] + 1
+
+                # print('target_shape', [t.shape for t in past_key_values.key_value_memory_dict.values()], input_ids.shape)
+                # print('target_shape', past_key_values[-1][-1].shape[-2], input_ids.shape)
+                # target_shape = input_ids.shape[1]
                 attention_mask = torch.cat(
                     (
                         attention_mask,
@@ -155,7 +163,7 @@ class LlavaMetaForCausalLM(ABC):
                     dim=1,
                 )
                 position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
-            print("without images")
+            # print("without images")
             return (
                 input_ids,
                 position_ids,

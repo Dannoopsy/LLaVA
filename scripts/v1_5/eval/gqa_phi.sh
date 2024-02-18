@@ -5,20 +5,21 @@ IFS=',' read -ra GPULIST <<< "$gpu_list"
 
 CHUNKS=${#GPULIST[@]}
 
-CKPT="llava-v1.5-13b"
+CKPT="llava-oophi_lora"
 SPLIT="llava_gqa_testdev_balanced"
 GQADIR="./playground/data/eval/gqa/data"
 
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python3.11 -m llava.eval.model_vqa_loader \
-        --model-path ../llava-v1.5-13b \
+        --model-path ../checkpoints/llava_oophi_lora \
+	--model-base ../checkpoints/oo-phi-1_5  \
 	--question-file ./playground/data/eval/gqa/$SPLIT.jsonl \
         --image-folder ./playground/data/eval/gqa/data/images \
-        --answers-file ./playground/data/eval/gqa/answers/$SPLIT/$CKPT/${CHUNKS}_${IDX}.jsonl  \
+        --answers-file ./playground/data/eval/gqa/answers/$SPLIT/$CKPT/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
         --temperature 0 \
-        --conv-mode vicuna_v1 &
+        --conv-mode oo-phi &
 done
 
 wait

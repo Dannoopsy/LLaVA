@@ -60,7 +60,7 @@ def eval_model(args):
         else:
             qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
 
-    if "llama-2" in model_name.lower():
+    if "llama-2" in model_name.lower() or "tinyllama" in model_name.lower():
         conv_mode = "llava_llama_2"
     elif "v1" in model_name.lower():
         conv_mode = "llava_v1"
@@ -71,6 +71,7 @@ def eval_model(args):
     else:
         conv_mode = "llava_v0"
 
+    print("\n\n\n\n", "conv_mode", conv_mode, "\n\n\n\n")
     if args.conv_mode is not None and conv_mode != args.conv_mode:
         print(
             "[WARNING] the auto inferred conversation mode is {}, while `--conv-mode` is {}, using {}".format(

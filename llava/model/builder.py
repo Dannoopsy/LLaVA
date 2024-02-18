@@ -65,10 +65,19 @@ def load_pretrained_model(
             print("Loading LLaVA from base model...")
             # print(kwargs)
 
-            model = LlavaLlamaForCausalLM.from_pretrained(
-                model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
-            )  # , **kwargs)
-            # model = LlavaLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
+            if "llama" in model_name.lower():
+                model = LlavaLlamaForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )  # , **kwargs)
+                # model = LlavaLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
+            elif "phipretrained" in model_name.lower():
+                model = LlavaPhiPretrainedForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )
+            elif "phi" in model_name.lower():
+                model = LlavaPhiForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )
 
             # token_num, tokem_dim = model.model.layers[25].out_features, model.model.layers[25].in_features
             # if model.model.layers[25].weight.shape[0] != token_num:
@@ -160,6 +169,19 @@ def load_pretrained_model(
                 model = LlavaLlamaForCausalLM.from_pretrained(
                     model_path, low_cpu_mem_usage=True, **kwargs
                 )
+                if "llama" in model_name.lower():
+                    model = LlavaLlamaForCausalLM.from_pretrained(
+                        model_path, low_cpu_mem_usage=True, **kwargs
+                    )
+                elif "phipretrained" in model_name.lower():
+                    model = LlavaPhiPretrainedForCausalLM.from_pretrained(
+                        model_path, low_cpu_mem_usage=True, **kwargs
+                    )
+                elif "phi" in model_name.lower():
+                    model = LlavaPhiForCausalLM.from_pretrained(
+                        model_path, low_cpu_mem_usage=True, **kwargs
+                    )
+
                 # model = LlavaLlamaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=False)#, **kwargs)
     else:
         # Load language model

@@ -13,24 +13,19 @@
 #    limitations under the License.
 
 
+import importlib
+import sys
 from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from transformers import AutoConfig, AutoModelForCausalLM
-
-my_cfg_phi = AutoConfig.from_pretrained(
-    "/home/d.belopolskikh/home/llava/checkpoints/phi-1_5/", trust_remote_code=True
-)
-import importlib
-import sys
-
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers_modules.configuration_phi import PhiConfig
-from transformers_modules.modeling_phi import PhiForCausalLM, PhiModel
 
-sys.path.append("/home/d.belopolskikh/home/llava")
-from LLaVA.llava.model.llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
+from ...lmodels.phi15.configuration_phi import PhiConfig
+from ...lmodels.phi15.modeling_phi import PhiForCausalLM, PhiModel
+# sys.path.append("../../../")
+from ..llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
 
 
 def _make_causal_mask(

@@ -2,12 +2,12 @@
 # #!/bin/bash
 
 deepspeed ../../LLaVA/llava/train/train_mem.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
+    --lora_enable True --lora_r 256 --lora_alpha 512 --mm_projector_lr 2e-5 \
     --deepspeed ../../LLaVA/scripts/zero3.json \
     --model_name_or_path ../../checkpoints/oo-phi-1_5 \
-    --version v1 \
+    --version oo-phi \
     --data_path ../../data/finetunedata/corrected_data.json \
-    --val_path ../../data/vqav2val/dataval80537.json \
+    --val_path ../../data/vqav2val/dataval20000.json \
     --image_folder ../../data/finetunedata \
     --val_image_folder ../../data/vqav2val \
     --vision_tower openai/clip-vit-base-patch16 \
@@ -19,9 +19,9 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../../checkpoints/llava_oophi_lora \
+    --output_dir ../../checkpoints/llava_oophi_lora_big \
     --num_train_epochs 1 \
-    --eval_steps 0.0001 \
+    --eval_steps 0.24 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 64 \
@@ -40,4 +40,4 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --gradient_checkpointing False \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
-    --report_to none
+    --report_to wandb

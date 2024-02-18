@@ -2,14 +2,14 @@
 
 deepspeed ../../LLaVA/llava/train/train_mem.py \
     --deepspeed ../../LLaVA/scripts/zero3.json \
-    --model_name_or_path ../../checkpoints/oo-phi-1_5 \
+    --model_name_or_path ../../checkpoints/vicuna-7b-v1.5-16k \
     --version v1 \
     --data_path ../../data/finetunedata/llava_v1_5_mix665k.json \
     --val_path ../../data/vqav2val/dataval80537.json \
     --image_folder ../../data/finetunedata \
     --val_image_folder ../../data/vqav2val \
     --vision_tower openai/clip-vit-base-patch16 \
-    --pretrain_mm_mlp_adapter ../../checkpoints/llava_oophi_pretrain/mm_projector.bin \
+    --pretrain_mm_mlp_adapter ../../checkpoints/vicuna_pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -17,13 +17,13 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../../checkpoints/llava_oophi \
+    --output_dir ../../checkpoints/llava_vicuna \
     --num_train_epochs 2 \
     --eval_steps 0.25 \
-    --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 8 \
-    --gradient_accumulation_steps 16 \
-    --eval_accumulation_steps 16 \
+    --per_device_train_batch_size 4 \
+    --per_device_eval_batch_size 4 \
+    --gradient_accumulation_steps 32 \
+    --eval_accumulation_steps 32 \
     --evaluation_strategy "steps" \
     --save_strategy "steps" \
     --save_steps 50000 \
