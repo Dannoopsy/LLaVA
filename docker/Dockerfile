@@ -9,7 +9,7 @@ RUN wget https://www.python.org/ftp/python/3.11.3/Python-3.11.3.tgz && tar -xf P
 RUN apt-get install git -y
 
 RUN mkdir /home/llava && mkdir /home/llava/LLaVA
-COPY * /home/llava/LLaVA/
+COPY . /home/llava/LLaVA/
 # git clone https://github.com/Dannoopsy/LLaVA.git
 RUN cd /home/llava/LLaVA && pip3.11 install --upgrade pip && pip3.11 install -e . && pip3.11 install -e ".[train]" && pip3.11 install flash-attn --no-build-isolation
 RUN apt-get install vim -y
