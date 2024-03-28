@@ -539,7 +539,7 @@ def preprocess_v1(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored) preprocess_v1"
                 )
-    print("input_ids: ", input_ids, "\ntargets: ", targets)
+    # print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -695,7 +695,7 @@ def preprocess_mpt(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored), preprocess_mpt"
                 )
-    print("input_ids: ", input_ids, "\ntargets: ", targets)
+    # print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -792,7 +792,7 @@ def preprocess(
             )["input_ids_lens"]
         speakers = [sentence["from"] for sentence in source]
         _mask_targets(target, tokenized_lens, speakers)
-    print("input_ids: ", input_ids, "\ntargets: ", targets)
+    # print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(input_ids=input_ids, labels=targets)
 
 
@@ -1062,6 +1062,7 @@ def train():
                     model_args.model_name_or_path,
                     cache_dir=training_args.cache_dir,
                     **bnb_model_from_pretrained_args,
+                    attn_implementation="flash_attention_2"
                 )
                 # print('\n\n\nbnb_model_from_pretrained_args', bnb_model_from_pretrained_args)
             elif "phi" in model_args.model_name_or_path.lower():
