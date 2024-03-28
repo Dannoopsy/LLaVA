@@ -497,7 +497,7 @@ def preprocess_v1(
     for conversation, target in zip(conversations, targets):
         # print('target1:', target)
         # + 1 only for phi tokenizer because eos = pad
-        total_len = int(target.ne(tokenizer.pad_token_id).sum()) + 1
+        total_len = int(target.ne(tokenizer.pad_token_id).sum())
         # print('pad_token_id: ',tokenizer.pad_token_id)
         # print('total len:', total_len, 'shape :', target.shape)
 
