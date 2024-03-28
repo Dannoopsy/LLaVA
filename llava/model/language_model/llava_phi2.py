@@ -22,10 +22,8 @@ import torch.nn as nn
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from ...lmodels.oophi15.configuration_mixformer_sequential import \
-    MixFormerSequentialConfig as PhiConfig
-from ...lmodels.oophi15.modeling_mixformer_sequential import \
-    MixFormerSequentialForCausalLM
+from ...lmodels.phi2.configuration_phi import PhiConfig
+from ...lmodels.phi2.modeling_phi import PhiForCausalLM, PhiModel
 # sys.path.append("../../../")
 from ..llava_arch import LlavaMetaForCausalLM, LlavaMetaModel
 
@@ -104,44 +102,44 @@ class CausalLMLoss(nn.Module):
         return loss
 
 
-class MyPhi(MixFormerSequentialForCausalLM):
+class MyPhi(PhiModel):
     def get_input_embeddings(self):
-        return self.embd.wte
+        return self.model.embed_tokens
 
     def embed_tokens(self, inp):
-        return self.emb(inp)
+        return self.model.embed_tokens(inp)
 
 
 class LlavaConfig(PhiConfig):
     model_type = "llava_initial"
 
 
-class LlavaPhiModel(LlavaMetaModel, MixFormerSequentialForCausalLM):
+class LlavaPhiModel(LlavaMetaModel, PhiForCausalLM):
     config_class = LlavaConfig
 
     def __init__(self, config: PhiConfig):
         super(LlavaPhiModel, self).__init__(config)
 
     def embed_tokens(self, inp):
-        return self.layers[0](inp).squeeze(0)
+        return self.model.embed_tokens(inp).squeeze(0)
 
 
-class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM):
+class LlavaLlamaForCausalLM(PhiForCausalLM, LlavaMetaForCausalLM):
     config_class = LlavaConfig
 
     def __init__(self, config):
-        super(MixFormerSequentialForCausalLM, self).__init__(config)
+        super(PhiForCausalLM, self).__init__(config)
         # print('Phi INIT')
         self.model = LlavaPhiModel(config)
-        test_model = MixFormerSequentialForCausalLM.from_pretrained(
-            config._name_or_path
-        )
-        del self.model.layers
+        test_model = PhiForCausalLM.from_pretrained(config._name_or_path)
+        del self.model.model
+        del self.model.lm_head
         torch.cuda.empty_cache()
-        self.model.layers = test_model.layers
+        self.model.model = test_model.model
+        self.model.lm_head = test_model.lm_head
+        # self.model.loss = test_model.loss
         self.pretraining_tp = 0  # config.pretraining_tp
         self.vocab_size = config.vocab_size
-        self.gradient_checkpointing = False
 
         self.loss = CausalLMLoss()
         # Initialize weights and apply final processing
@@ -152,16 +150,16 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
 
     def get_input_embeddings(self):
         # print(self)
-        return self.model.layers[0].wte
+        return self.model.model.embed_tokens
 
     def get_output_embeddings(self):
-        return self.model.layers[25].linear
+        return self.model.lm_head.linear
 
     def set_input_embeddings(self, new_embeddings):
-        self.model.layers[0].wte = new_embeddings
+        self.model.model.embed_tokens = new_embeddings
 
     def set_output_embeddings(self, new_embeddings):
-        self.model.layers[25].linear = new_embeddings
+        self.model.lm_head.linear = new_embeddings
         # print('in set_input_embeddings:', new_embeddings)
 
     def forward(
@@ -180,13 +178,7 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
         alpha=1,
         return_norms=False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        # torch.cuda.empty_cache()
         # past_key_values = None
-
-        # n = 0
-        # for p in self.parameters():
-        #     n += p.numel()
-        # print('number of params, mln', int(n / 1e6))
         if inputs_embeds is None and images is not None:
             (
                 input_ids,
@@ -206,73 +198,15 @@ class LlavaLlamaForCausalLM(MixFormerSequentialForCausalLM, LlavaMetaForCausalLM
             )
 
         if inputs_embeds is None:
-            # print('inputs_embeds is None')
-            inputs_embeds = self.model.layers[0](input_ids)
+            inputs_embeds = self.model.model.embed_tokens(input_ids)
 
-        norms = []
-        id1, id2 = 142, 142 + 14 * 14
-        norm = torch.linalg.norm(inputs_embeds[0], 2, -1)
-        norms.append(
-            [
-                (norm[:id1].sum() + norm[id2:].sum()).item() / (len(norm) + id1 - id2),
-                norm[id1:id2].mean().item(),
-            ]
-        )
-        # norms.append(norm.mean().item())
-        # print('inputs_embeds', inputs_embeds.shape)
-        # print('inputs_embeds', inputs_embeds[:, -3:, :4])
-        # print('past_kv', inputs_embeds.shape, past_key_values)
-        # raise Exception()
-        if False and not past_key_values:
-            lm_logits = self.model.layers[1:](inputs_embeds)
-        else:
-            hidden_layer = inputs_embeds
-            # print('hidden_layer ', hidden_layer.shape)
-            for module in self.model.layers[1:-1]:
-                # print('past_key_values', past_key_values)
-                if self.gradient_checkpointing and self.training:
-                    hidden_layer = self._gradient_checkpointing_func(
-                        decoder_layer.__call__, hidden_layer, past_key_values
-                    )
-                else:
-                    # print('past_kv', inputs_embeds.shape, [t.shape for t in past_key_values.key_value_memory_dict.values()])
-                    # raise Exception()
-                    hidden_layer = module(hidden_layer, past_cache=past_key_values)
-                norm = torch.linalg.norm(hidden_layer[0], 2, -1)
-                norms.append(
-                    [
-                        (norm[:id1].sum() + norm[id2:].sum()).item()
-                        / (len(norm) + id1 - id2),
-                        norm[id1:id2].mean().item(),
-                    ]
-                )
-                # norms.append(norm.mean().item())
-            lm_logits = self.model.layers[-1](hidden_layer)
-
-        for n, c in self.model.named_children():
-            if "loss" not in n.lower():
-                # print(n)
-                trus = 0
-                falses = 0
-                for p in c.parameters():
-                    if p.requires_grad:
-                        trus += 1
-                    else:
-                        falses += 1
-                # print(trus, falses)
+        output = self.model.model(inputs_embeds=inputs_embeds)
+        hidden_states = output.last_hidden_state
+        past_key_values = output.past_key_values
+        lm_logits = self.model.lm_head(hidden_states)
         loss = None
         if labels is not None:
-            # print('labels', labels)
             loss = self.loss(lm_logits, labels)
-
-        if return_norms:
-            return (
-                CausalLMOutputWithPast(
-                    loss=loss, logits=lm_logits, past_key_values=past_key_values
-                ),
-                norms,
-            )
-
         return CausalLMOutputWithPast(
             loss=loss, logits=lm_logits, past_key_values=past_key_values
         )

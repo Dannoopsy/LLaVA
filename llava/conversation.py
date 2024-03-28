@@ -400,6 +400,29 @@ conv_phi_pretrained_v1 = Conversation(
     sep2="<|endoftext|>",
 )
 
+conv_gemma = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("USER", "ASSISTANT"),
+    version="gemma",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.TWO,
+    sep=" ",
+    sep2="<eos>",
+)
+
+# conv_gemma = Conversation(
+#     system="A chat between a curious user and an artificial intelligence assistant. "
+#     "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+#     roles=("<start_of_turn>user\n", "<start_of_turn>assistant\n"),
+#     version="oo-phi",
+#     messages=(),
+#     offset=0,
+#     sep_style=SeparatorStyle.MPT,
+#     # sep='<|endoftext|>',
+#     sep="<end_of_turn>",
+# )
 
 conv_llava_v1_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
@@ -431,6 +454,7 @@ conv_templates = {
     "mpt": conv_mpt,
     "oo-phi": conv_oo_phi,
     "phi": conv_phi_pretrained_v1,
+    "gemma": conv_gemma,
 }
 
 

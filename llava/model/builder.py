@@ -52,7 +52,7 @@ def load_pretrained_model(
         )
     else:
         kwargs["torch_dtype"] = torch.float16
-    print(model_name.lower())
+    # print(model_name.lower())
     if "llava" in model_name.lower():
         # Load LLaVA model
         if "lora" in model_name.lower() and model_base is None:
@@ -60,8 +60,13 @@ def load_pretrained_model(
                 "There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument. Detailed instruction: https://github.com/haotian-liu/LLaVA#launch-a-model-worker-lora-weights-unmerged."
             )
         if "lora" in model_name.lower() and model_base is not None:
+            print("lora case")
             lora_cfg_pretrained = AutoConfig.from_pretrained(model_path)
-            tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
+            # print(type(lora_cfg_pretrained))
+            if "phi2" not in model_name.lower():
+                tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
+            else:
+                tokenizer = AutoTokenizer.from_pretrained(model_base)
             print("Loading LLaVA from base model...")
             # print(kwargs)
 
@@ -70,11 +75,27 @@ def load_pretrained_model(
                     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
                 )  # , **kwargs)
                 # model = LlavaLlamaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
+            elif "zhuyiche" in model_name.lower():
+                model = ZhuyicheLlavaPhiForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )
             elif "phipretrained" in model_name.lower():
                 model = LlavaPhiPretrainedForCausalLM.from_pretrained(
                     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
                 )
+            elif "phi2" in model_name.lower() or "phi-2" in model_name.lower():
+                # print('phi2 loading 86 str')
+                model = LlavaPhi2ForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )
+            elif "gemma" in model_name.lower():
+                # print('phi2 loading 86 str')
+                model = LlavaGemmaForCausalLM.from_pretrained(
+                    model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                )
+                # print('model: ', type(model))
             elif "phi" in model_name.lower():
+                lora_cfg_pretrained = LlavaConfig.from_pretrained(model_path)
                 model = LlavaPhiForCausalLM.from_pretrained(
                     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
                 )
@@ -129,6 +150,7 @@ def load_pretrained_model(
 
             print("Model is loaded...")
         elif model_base is not None:
+            print("strange case")
             # this may be mm projector only
             print("Loading LLaVA from base model...")
             if "mpt" in model_name.lower():
@@ -145,11 +167,24 @@ def load_pretrained_model(
                     model_base, low_cpu_mem_usage=True, config=cfg_pretrained, **kwargs
                 )
             else:
-                tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
+                if "phi2" not in model_name.lower():
+                    tokenizer = AutoTokenizer.from_pretrained(
+                        model_base, use_fast=False
+                    )
+                else:
+                    tokenizer = AutoTokenizer.from_pretrained(model_base)
                 cfg_pretrained = AutoConfig.from_pretrained(model_path)
-                model = LlavaLlamaForCausalLM.from_pretrained(
-                    model_base, low_cpu_mem_usage=True, config=cfg_pretrained, **kwargs
-                )
+                if "gemma" in model_name.lower():
+                    model = LlavaGemmaForCausalLM.from_pretrained(
+                        model_base, low_cpu_mem_usage=False, config=cfg_pretrained
+                    )
+                else:
+                    model = LlavaLlamaForCausalLM.from_pretrained(
+                        model_base,
+                        low_cpu_mem_usage=True,
+                        config=cfg_pretrained,
+                        **kwargs,
+                    )
 
             mm_projector_weights = torch.load(
                 os.path.join(model_path, "mm_projector.bin"), map_location="cpu"
@@ -159,28 +194,54 @@ def load_pretrained_model(
             }
             model.load_state_dict(mm_projector_weights, strict=False)
         else:
+            print("ft case")
             if "mpt" in model_name.lower():
                 tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
                 model = LlavaMPTForCausalLM.from_pretrained(
                     model_path, low_cpu_mem_usage=True, **kwargs
                 )
             else:
-                tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
-                model = LlavaLlamaForCausalLM.from_pretrained(
-                    model_path, low_cpu_mem_usage=True, **kwargs
-                )
+                if "phi2" not in model_name.lower():
+                    tokenizer = AutoTokenizer.from_pretrained(
+                        model_path, use_fast=False
+                    )
+                else:
+                    tokenizer = AutoTokenizer.from_pretrained(model_path)
+                # model = LlavaLlamaForCausalLM.from_pretrained(
+                #     model_path, low_cpu_mem_usage=True, **kwargs
+                # )
                 if "llama" in model_name.lower():
                     model = LlavaLlamaForCausalLM.from_pretrained(
                         model_path, low_cpu_mem_usage=True, **kwargs
                     )
+                elif "zhuyiche" in model_name.lower():
+                    config = LlavaPhiConfig.from_pretrained(
+                        model_path, trust_remote_code=True
+                    )
+                    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+                    model = ZhuyicheLlavaPhiForCausalLM.from_pretrained(
+                        model_path, config=config, use_safetensors=True, **kwargs
+                    ).to("cuda")
                 elif "phipretrained" in model_name.lower():
                     model = LlavaPhiPretrainedForCausalLM.from_pretrained(
-                        model_path, low_cpu_mem_usage=True, **kwargs
+                        model_path, low_cpu_mem_usage=False
                     )
+                    model.cuda()
+                elif "phi2" in model_name.lower() or "phi-2" in model_name.lower():
+                    model = LlavaPhi2ForCausalLM.from_pretrained(
+                        model_path, low_cpu_mem_usage=False
+                    )
+                    model.cuda()
+                elif "gemma" in model_name.lower():
+                    model = LlavaGemmaForCausalLM.from_pretrained(
+                        model_path, low_cpu_mem_usage=False
+                    )
+                    model.cuda()
                 elif "phi" in model_name.lower():
                     model = LlavaPhiForCausalLM.from_pretrained(
-                        model_path, low_cpu_mem_usage=True, **kwargs
+                        model_path, low_cpu_mem_usage=False
                     )
+                    model.cuda()
 
                 # model = LlavaLlamaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=False)#, **kwargs)
     else:
@@ -227,7 +288,7 @@ def load_pretrained_model(
                 [DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True
             )
         len(tokenizer)
-        model.resize_token_embeddings(len(tokenizer))
+        # model.resize_token_embeddings(len(tokenizer))
 
         vision_tower = model.get_vision_tower()
         if not vision_tower.is_loaded:

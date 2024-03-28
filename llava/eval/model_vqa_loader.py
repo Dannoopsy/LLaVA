@@ -135,7 +135,7 @@ def eval_model(args):
         cur_prompt = line["text"]
 
         input_ids = input_ids.to(device="cuda", non_blocking=True)
-
+        # print(tokenizer, tokenizer.eos_token_id)
         with torch.inference_mode():
             # output_ids = model.generate(
             #     input_ids,
@@ -165,8 +165,8 @@ def eval_model(args):
                 # out = model(input_ids=input_tns, images=image_tensor.to(dtype=torch.float16, device="cpu", non_blocking=True))
                 logits = out.logits
                 new_id = logits.argmax(-1)[-1, -1].item()
-                # print(tokenizer.decode(new_id), new_id)
-                if new_id == tokenizer.eos_token_id:
+                # print(tokenizer.decode([new_id]), new_id)
+                if new_id == tokenizer.eos_token_id or new_id == 108:
                     break
                 out_ids.append(new_id)
                 input_ids.append(new_id)
@@ -191,7 +191,7 @@ def eval_model(args):
                 {
                     "question_id": idx,
                     "prompt": cur_prompt,
-                    "text": outputs,
+                    "text": outputs.strip(),
                     "answer_id": ans_id,
                     "model_id": model_name,
                     "metadata": {},

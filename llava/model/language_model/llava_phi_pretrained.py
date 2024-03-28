@@ -111,7 +111,7 @@ class MyPhi(PhiModel):
 
 
 class LlavaConfig(PhiConfig):
-    model_type = "llava"
+    model_type = "llava_initial"
 
 
 class LlavaPhiModel(LlavaMetaModel, PhiForCausalLM):
@@ -294,5 +294,5 @@ class LlavaLlamaForCausalLM(PhiForCausalLM, LlavaMetaForCausalLM):
         return _inputs
 
 
-AutoConfig.register("llava", LlavaConfig)
+AutoConfig.register("llava_initial", LlavaConfig)
 AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)

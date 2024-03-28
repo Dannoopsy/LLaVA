@@ -29,9 +29,16 @@ from .multimodal_projector.builder import build_vision_projector
 class LlavaMetaModel:
     def __init__(self, config):
         super(LlavaMetaModel, self).__init__(config)
+        # print('config: ', config)
         if hasattr(config, "mm_vision_tower"):
+            print("build vision modules")
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
+        elif hasattr(config, "vision_tower"):
+            print("build vision modules")
+            self.vision_tower = build_vision_tower(config, delay_load=True)
+            self.mm_projector = build_vision_projector(config)
+        # print(self.vision_tower)
 
     def get_vision_tower(self):
         vision_tower = getattr(self, "vision_tower", None)

@@ -497,7 +497,7 @@ def preprocess_v1(
     for conversation, target in zip(conversations, targets):
         # print('target1:', target)
         # + 1 only for phi tokenizer because eos = pad
-        total_len = int(target.ne(tokenizer.pad_token_id).sum())
+        total_len = int(target.ne(tokenizer.pad_token_id).sum()) + 1
         # print('pad_token_id: ',tokenizer.pad_token_id)
         # print('total len:', total_len, 'shape :', target.shape)
 
@@ -539,7 +539,7 @@ def preprocess_v1(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored) preprocess_v1"
                 )
-
+    print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -695,7 +695,7 @@ def preprocess_mpt(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored), preprocess_mpt"
                 )
-
+    print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -728,6 +728,7 @@ def preprocess_plain(
         tokenized_len = len(tokenizer_image_token(source[0]["value"], tokenizer))
         target[:tokenized_len] = IGNORE_INDEX
 
+    # print('input_ids', input_ids)
     return dict(input_ids=input_ids, labels=targets)
 
 
@@ -759,6 +760,8 @@ def preprocess(
         return preprocess_mpt(sources, tokenizer)
     if conversation_lib.default_conversation.version == "oo-phi":
         return preprocess_mpt(sources, tokenizer)
+    if conversation_lib.default_conversation.version == "gemma":
+        return preprocess_v1(sources, tokenizer, has_image=has_image)
     # add end signal and concatenate together
     conversations = []
     for source in sources:
@@ -789,7 +792,7 @@ def preprocess(
             )["input_ids_lens"]
         speakers = [sentence["from"] for sentence in source]
         _mask_targets(target, tokenized_lens, speakers)
-
+    print("input_ids: ", input_ids, "\ntargets: ", targets)
     return dict(input_ids=input_ids, labels=targets)
 
 
@@ -1039,6 +1042,28 @@ def train():
                     cache_dir=training_args.cache_dir,
                     **bnb_model_from_pretrained_args,
                 )
+            elif (
+                "phi2" in model_args.model_name_or_path.lower()
+                or "phi-2" in model_args.model_name_or_path.lower()
+            ):
+                # model = LlavaPhiPretrainedForCausalLM.from_pretrained(
+                #     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                # )
+                model = LlavaPhi2ForCausalLM.from_pretrained(
+                    model_args.model_name_or_path,
+                    cache_dir=training_args.cache_dir,
+                    **bnb_model_from_pretrained_args,
+                )
+            elif "gemma" in model_args.model_name_or_path.lower():
+                # model = LlavaPhiPretrainedForCausalLM.from_pretrained(
+                #     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
+                # )
+                model = LlavaGemmaForCausalLM.from_pretrained(
+                    model_args.model_name_or_path,
+                    cache_dir=training_args.cache_dir,
+                    **bnb_model_from_pretrained_args,
+                )
+                # print('\n\n\nbnb_model_from_pretrained_args', bnb_model_from_pretrained_args)
             elif "phi" in model_args.model_name_or_path.lower():
                 # model = LlavaPhiForCausalLM.from_pretrained(
                 #     model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained
@@ -1072,6 +1097,7 @@ def train():
             model, use_gradient_checkpointing=training_args.gradient_checkpointing
         )
     #     print(type(model))
+    # print(model.model.model.embed_tokens.weight[5])
     if training_args.gradient_checkpointing:
         if False:  # hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
@@ -1102,6 +1128,9 @@ def train():
             if training_args.fp16:
                 model.to(torch.float16)
         rank0_print("Adding LoRA adapters...")
+        # print('\n\n\n', lora_config, '\n\n\n')
+        if "default" in lora_config.target_modules:
+            lora_config.target_modules.remove("default")
         model = get_peft_model(model, lora_config)
 
     if "mpt" in model_args.model_name_or_path:
@@ -1110,6 +1139,17 @@ def train():
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
             padding_side="right",
+        )
+    elif (
+        "phi2" in model_args.model_name_or_path
+        or "phi-2" in model_args.model_name_or_path
+    ):
+        tokenizer = transformers.AutoTokenizer.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            model_max_length=training_args.model_max_length,
+            padding_side="right",
+            # use_fast=False,
         )
     else:
         tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -1206,6 +1246,7 @@ def train():
         tokenizer=tokenizer, data_args=data_args, val_args=val_args
     )
     # print(model.model)
+    # print(training_args)
     trainer = LLaVATrainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
@@ -1215,7 +1256,8 @@ def train():
             if state.global_step == 1:
                 control.should_evaluate = True
 
-    trainer.add_callback(EvaluateFirstStepCallback())
+    if val_args.val_path is not None:
+        trainer.add_callback(EvaluateFirstStepCallback())
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:

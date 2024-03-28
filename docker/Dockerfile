@@ -1,6 +1,6 @@
 from nvidia/cuda:11.7.1-devel-ubuntu20.04
 
-RUN su - 
+RUN su -
 RUN apt-get update
 RUN apt-get -y install sudo
 #python install
@@ -18,4 +18,3 @@ RUN apt-get install vim -y
 # RUN alias pip=pip3.11
 # RUN alias python3=python3.11
 # RUN alias pip3=pip3.11
-
