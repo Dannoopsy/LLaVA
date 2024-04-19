@@ -129,7 +129,7 @@ class LlavaLlamaForCausalLM(GemmaForCausalLM, LlavaMetaForCausalLM):
         super(GemmaForCausalLM, self).__init__(config)
         # print('Phi INIT')
         self.model = LlavaGemmaModel(config)
-        test_model = GemmaForCausalLM.from_pretrained(config._name_or_path)
+        test_model = GemmaForCausalLM.from_pretrained(config._name_or_path, token='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')
         # print(test_model.model.embed_tokens.weight.sum())
         del self.model.model
         del self.model.lm_head

@@ -6,7 +6,7 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --deepspeed ../../LLaVA/scripts/zero3.json \
     --model_name_or_path ../../checkpoints/gemma-2b-it \
     --version gemma \
-    --data_path ../../data/finetunedata/corrected_data.json \
+    --data_path ../../data/finetunedata/russian_all_yaq.json \
     --val_path ../../data/vqav2val/dataval20000.json \
     --image_folder ../../data/finetunedata \
     --val_image_folder ../../data/vqav2val \
@@ -19,7 +19,7 @@ deepspeed ../../LLaVA/llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length True \
     --bf16 True \
-    --output_dir ../../checkpoints/llava_gemma_lora \
+    --output_dir ../../checkpoints/llava_gemma_lorarus_yaq \
     --num_train_epochs 1 \
     --eval_steps 0.24 \
     --per_device_train_batch_size 2 \

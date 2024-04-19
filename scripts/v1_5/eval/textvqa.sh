@@ -1,7 +1,7 @@
 #!/bin/bash
 
 python3.11 -m llava.eval.model_vqa_loader \
-    --model-path ../checkpoints/llava_gemma_lora \
+    --model-path ../checkpoints/llava_gemma_lorarus \
     --model-base ../checkpoints/gemma-2b-it \
     --question-file ./playground/data/eval/textvqa/llava_textvqa_val_v051_ocr.jsonl \
     --image-folder ./playground/data/eval/textvqa/train_images \

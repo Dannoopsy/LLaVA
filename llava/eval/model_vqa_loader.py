@@ -166,7 +166,7 @@ def eval_model(args):
                 logits = out.logits
                 new_id = logits.argmax(-1)[-1, -1].item()
                 # print(tokenizer.decode([new_id]), new_id)
-                if new_id == tokenizer.eos_token_id or new_id == 108:
+                if new_id == tokenizer.eos_token_id:
                     break
                 out_ids.append(new_id)
                 input_ids.append(new_id)

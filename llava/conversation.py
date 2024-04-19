@@ -11,6 +11,7 @@ class SeparatorStyle(Enum):
     MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    GEMMA = auto()
 
 
 @dataclasses.dataclass
@@ -63,6 +64,16 @@ class Conversation:
         elif self.sep_style == SeparatorStyle.MPT:
             ret = self.system + self.sep
             for role, message in messages:
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += role + message + self.sep
+                else:
+                    ret += role
+        elif self.sep_style == SeparatorStyle.GEMMA:
+            ret = ""
+            for i, (role, message) in enumerate(messages):
+                assert role == self.roles[i % 2], "Conversation should alternate user/assistant/user/assistant/..."
                 if message:
                     if type(message) is tuple:
                         message, _, _ = message
@@ -412,6 +423,16 @@ conv_gemma = Conversation(
     sep2="<eos>",
 )
 
+conv_gemma_instruct = Conversation(
+    system="",
+    roles=("<start_of_turn>user\n", "<start_of_turn>model\n"),
+    version="gemma",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.GEMMA,
+    sep="<end_of_turn>\n"
+)
+
 # conv_gemma = Conversation(
 #     system="A chat between a curious user and an artificial intelligence assistant. "
 #     "The assistant gives helpful, detailed, and polite answers to the user's questions.",
@@ -454,7 +475,7 @@ conv_templates = {
     "mpt": conv_mpt,
     "oo-phi": conv_oo_phi,
     "phi": conv_phi_pretrained_v1,
-    "gemma": conv_gemma,
+    "gemma": conv_gemma_instruct,
 }
 
 
